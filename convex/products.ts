@@ -105,7 +105,8 @@ export const applyAiListingResult = internalMutation({
     priceSek: v.number(),
     category: v.string(),
     attributes: v.array(attributeValidator),
-    processedImageStorageId: v.id("_storage"),
+    /** Om utelämnad behålls befintlig visningsbild (t.ex. rå butiksbild om Gemini misslyckades). */
+    processedImageStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     const doc = await ctx.db.get("products", args.productId);
@@ -118,7 +119,9 @@ export const applyAiListingResult = internalMutation({
       priceSek: args.priceSek,
       category: args.category,
       attributes: args.attributes,
-      imageStorageId: args.processedImageStorageId,
+      ...(args.processedImageStorageId !== undefined
+        ? { imageStorageId: args.processedImageStorageId }
+        : {}),
       captureStatus: "ready",
       captureError: undefined,
     });

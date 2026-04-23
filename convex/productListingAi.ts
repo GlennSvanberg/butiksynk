@@ -183,10 +183,22 @@ export const runPipeline = internalAction({
 
       const openai = new OpenAI({ apiKey: openaiKey });
 
-      const [listing, geminiBuf] = await Promise.all([
+      const [listingOutcome, geminiOutcome] = await Promise.allSettled([
         runOpenAIListing(openai, base64, mimeType),
         runGeminiProductImage(base64, mimeType),
       ]);
+
+      if (listingOutcome.status === "rejected") {
+        const reason = listingOutcome.reason;
+        const message =
+          reason instanceof Error
+            ? reason.message
+            : "Okänt fel vid produktdata (OpenAI).";
+        await fail(message);
+        return;
+      }
+
+      const listing = listingOutcome.value;
 
       const revalidate = productListingAISchema.safeParse(listing);
       if (!revalidate.success) {
@@ -199,8 +211,20 @@ export const runPipeline = internalAction({
         Math.min(1_000_000, Math.round(Math.abs(revalidate.data.priceSek))),
       );
 
+      const geminiBuf =
+        geminiOutcome.status === "fulfilled" ? geminiOutcome.value : null;
+
+      const baseApply = {
+        productId: args.productId,
+        title: revalidate.data.title,
+        description: revalidate.data.description,
+        priceSek,
+        category: revalidate.data.category,
+        attributes: revalidate.data.attributes,
+      };
+
       if (!geminiBuf || geminiBuf.length < 100) {
-        await fail("Kunde inte skapa produktfoto (Gemini).");
+        await ctx.runMutation(internal.products.applyAiListingResult, baseApply);
         return;
       }
 
@@ -228,12 +252,7 @@ export const runPipeline = internalAction({
       }
 
       await ctx.runMutation(internal.products.applyAiListingResult, {
-        productId: args.productId,
-        title: revalidate.data.title,
-        description: revalidate.data.description,
-        priceSek,
-        category: revalidate.data.category,
-        attributes: revalidate.data.attributes,
+        ...baseApply,
         processedImageStorageId: uploadJson.storageId as Id<"_storage">,
       });
     } catch (e) {
