@@ -16,6 +16,7 @@ Stack: **TanStack Start** (SSR + admin UX) and **Convex** (backend + realtime da
 - Match existing patterns; keep diffs focused on the task.
 - Prefer Convex queries/mutations/actions with proper validation and auth where applicable.
 - UI should stay fast, precise, and on-brand per `DESIGNGUIDELINES.md`—no decorative fluff.
+- **New UI:** Prefer **[shadcn/ui](https://ui.shadcn.com)** for components (add via `npx shadcn@latest add <component>` once the project is initialized). Compose with Tailwind; keep **colors, type, and tone** aligned with `DESIGNGUIDELINES.md`—theme or extend shadcn tokens/CSS variables to match the brand. Existing routes that predate shadcn can stay as-is until you change them for other reasons; then optionally adopt shadcn primitives for consistency.
 
 This project uses [Convex](https://convex.dev) as its backend.
 

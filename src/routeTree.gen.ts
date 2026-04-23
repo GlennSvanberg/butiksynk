@@ -10,11 +10,20 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AnotherPageRouteImport } from './routes/anotherPage'
+import { Route as DemoshopRouteRouteImport } from './routes/demoshop/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DemoshopIndexRouteImport } from './routes/demoshop/index'
+import { Route as DemoshopSnabbRouteImport } from './routes/demoshop/snabb'
+import { Route as DemoshopNyRouteImport } from './routes/demoshop/ny'
 
 const AnotherPageRoute = AnotherPageRouteImport.update({
   id: '/anotherPage',
   path: '/anotherPage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DemoshopRouteRoute = DemoshopRouteRouteImport.update({
+  id: '/demoshop',
+  path: '/demoshop',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -22,30 +31,70 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DemoshopIndexRoute = DemoshopIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DemoshopRouteRoute,
+} as any)
+const DemoshopSnabbRoute = DemoshopSnabbRouteImport.update({
+  id: '/snabb',
+  path: '/snabb',
+  getParentRoute: () => DemoshopRouteRoute,
+} as any)
+const DemoshopNyRoute = DemoshopNyRouteImport.update({
+  id: '/ny',
+  path: '/ny',
+  getParentRoute: () => DemoshopRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/demoshop': typeof DemoshopRouteRouteWithChildren
   '/anotherPage': typeof AnotherPageRoute
+  '/demoshop/ny': typeof DemoshopNyRoute
+  '/demoshop/snabb': typeof DemoshopSnabbRoute
+  '/demoshop/': typeof DemoshopIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/anotherPage': typeof AnotherPageRoute
+  '/demoshop/ny': typeof DemoshopNyRoute
+  '/demoshop/snabb': typeof DemoshopSnabbRoute
+  '/demoshop': typeof DemoshopIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/demoshop': typeof DemoshopRouteRouteWithChildren
   '/anotherPage': typeof AnotherPageRoute
+  '/demoshop/ny': typeof DemoshopNyRoute
+  '/demoshop/snabb': typeof DemoshopSnabbRoute
+  '/demoshop/': typeof DemoshopIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/anotherPage'
+  fullPaths:
+    | '/'
+    | '/demoshop'
+    | '/anotherPage'
+    | '/demoshop/ny'
+    | '/demoshop/snabb'
+    | '/demoshop/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/anotherPage'
-  id: '__root__' | '/' | '/anotherPage'
+  to: '/' | '/anotherPage' | '/demoshop/ny' | '/demoshop/snabb' | '/demoshop'
+  id:
+    | '__root__'
+    | '/'
+    | '/demoshop'
+    | '/anotherPage'
+    | '/demoshop/ny'
+    | '/demoshop/snabb'
+    | '/demoshop/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DemoshopRouteRoute: typeof DemoshopRouteRouteWithChildren
   AnotherPageRoute: typeof AnotherPageRoute
 }
 
@@ -58,6 +107,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnotherPageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/demoshop': {
+      id: '/demoshop'
+      path: '/demoshop'
+      fullPath: '/demoshop'
+      preLoaderRoute: typeof DemoshopRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -65,11 +121,49 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/demoshop/': {
+      id: '/demoshop/'
+      path: '/'
+      fullPath: '/demoshop/'
+      preLoaderRoute: typeof DemoshopIndexRouteImport
+      parentRoute: typeof DemoshopRouteRoute
+    }
+    '/demoshop/snabb': {
+      id: '/demoshop/snabb'
+      path: '/snabb'
+      fullPath: '/demoshop/snabb'
+      preLoaderRoute: typeof DemoshopSnabbRouteImport
+      parentRoute: typeof DemoshopRouteRoute
+    }
+    '/demoshop/ny': {
+      id: '/demoshop/ny'
+      path: '/ny'
+      fullPath: '/demoshop/ny'
+      preLoaderRoute: typeof DemoshopNyRouteImport
+      parentRoute: typeof DemoshopRouteRoute
+    }
   }
 }
 
+interface DemoshopRouteRouteChildren {
+  DemoshopNyRoute: typeof DemoshopNyRoute
+  DemoshopSnabbRoute: typeof DemoshopSnabbRoute
+  DemoshopIndexRoute: typeof DemoshopIndexRoute
+}
+
+const DemoshopRouteRouteChildren: DemoshopRouteRouteChildren = {
+  DemoshopNyRoute: DemoshopNyRoute,
+  DemoshopSnabbRoute: DemoshopSnabbRoute,
+  DemoshopIndexRoute: DemoshopIndexRoute,
+}
+
+const DemoshopRouteRouteWithChildren = DemoshopRouteRoute._addFileChildren(
+  DemoshopRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DemoshopRouteRoute: DemoshopRouteRouteWithChildren,
   AnotherPageRoute: AnotherPageRoute,
 }
 export const routeTree = rootRouteImport

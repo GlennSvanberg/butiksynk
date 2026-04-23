@@ -16,27 +16,36 @@ function AnotherPage() {
   )
 
   return (
-    <main className="p-8 flex flex-col gap-16">
-      <h1 className="text-4xl font-bold text-center">
-        Convex + Tanstack Start
+    <main className="mx-auto flex min-h-dvh max-w-lg flex-col gap-8 bg-brand-bg p-8 text-brand-text">
+      <h1 className="font-heading text-center text-2xl font-bold text-brand-dark">
+        Dev · Convex
       </h1>
-      <div className="flex flex-col gap-8 max-w-lg mx-auto">
-        <p>Numbers: {data.numbers.join(', ')}</p>
-        <p>Click the button below to add a random number to the database.</p>
+      <div className="flex flex-col gap-6">
+        <p className="font-mono text-sm">
+          Numbers:{' '}
+          <span className="font-medium text-brand-dark">{data.numbers.join(', ')}</span>
+        </p>
+        <p className="text-brand-dark/75">
+          Knappen anropar en Convex-action och lägger till ett tal i databasen.
+        </p>
         <p>
           <button
-            className="bg-dark dark:bg-light text-light dark:text-dark text-sm px-4 py-2 rounded-md border-2"
+            type="button"
+            className="rounded-lg bg-brand-dark px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90"
             onClick={() => {
-              callMyAction({
+              void callMyAction({
                 first: Math.round(Math.random() * 100),
               }).then(() => alert('Number added!'))
             }}
           >
-            Call action to add a random number
+            Lägg till slumpmässigt tal
           </button>
         </p>
-        <Link to="/" className="text-blue-600 underline hover:no-underline">
-          Back
+        <Link
+          to="/"
+          className="text-sm font-medium text-brand-dark underline decoration-brand-dark/30 underline-offset-4 hover:decoration-brand-dark"
+        >
+          ← Till startsidan
         </Link>
       </div>
     </main>

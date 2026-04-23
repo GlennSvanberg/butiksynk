@@ -34,12 +34,12 @@ function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-brand-dark/10 bg-brand-bg/90 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:h-16 sm:px-6">
-        <a href="/" className="flex items-center gap-2.5">
+        <Link to="/" className="flex items-center gap-2.5">
           <LogoMark className="size-8 shrink-0 text-brand-dark" />
           <span className="font-heading text-lg font-bold tracking-tight text-brand-dark">
             Butiksynk
           </span>
-        </a>
+        </Link>
         <nav
           className="hidden items-center gap-8 text-sm font-medium text-brand-dark/80 md:flex"
           aria-label="Primär"
@@ -53,13 +53,19 @@ function Header() {
           <a href="#kill" className="transition hover:text-brand-dark">
             Kill-switch
           </a>
-        </nav>
-        <div className="flex items-center gap-3">
           <Link
-            to="/anotherPage"
-            className="hidden rounded-lg px-3 py-2 text-sm font-medium text-brand-dark/70 transition hover:bg-brand-dark/5 hover:text-brand-dark sm:inline"
+            to="/demoshop"
+            className="transition hover:text-brand-dark"
           >
-            Dev
+            Demoshop
+          </Link>
+        </nav>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Link
+            to="/demoshop"
+            className="rounded-lg px-3 py-2 text-sm font-medium text-brand-dark/70 transition hover:bg-brand-dark/5 hover:text-brand-dark md:hidden"
+          >
+            Demoshop
           </Link>
           <a
             href="#kontakt"
@@ -109,6 +115,12 @@ function Hero() {
           >
             Se funktionerna
           </a>
+          <Link
+            to="/demoshop"
+            className="inline-flex items-center justify-center rounded-lg border border-brand-dark/20 bg-brand-surface px-5 py-3 text-sm font-semibold text-brand-dark shadow-sm transition hover:border-brand-dark/35"
+          >
+            Öppna demoshop
+          </Link>
         </div>
         <dl className="mt-14 grid gap-6 border-t border-brand-dark/10 pt-10 sm:grid-cols-3">
           <div>
@@ -359,7 +371,7 @@ function Footer() {
           <span className="text-sm text-brand-dark/55">© {new Date().getFullYear()}</span>
         </div>
         <p className="text-sm text-brand-dark/55">
-          PIM för second hand · Stockholm & Sverige
+          PIM för second hand · Göteborg & Sverige
         </p>
       </div>
     </footer>

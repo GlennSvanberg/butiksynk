@@ -9,6 +9,8 @@
  */
 
 import type * as myFunctions from "../myFunctions.js";
+import type * as productListingAi from "../productListingAi.js";
+import type * as products from "../products.js";
 
 import type {
   ApiFromModules,
@@ -18,6 +20,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   myFunctions: typeof myFunctions;
+  productListingAi: typeof productListingAi;
+  products: typeof products;
 }>;
 
 /**
