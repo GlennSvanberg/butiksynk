@@ -1,5 +1,7 @@
 Everything on this website is written in Swedish, it is targeting the swedish market only
 
+Never ever run the dev server. user always has one terminal running with npm run dev
+
 ## What this is
 
 **Butiksynk** is a **PIM** (Product Information Management) product for **second-hand and vintage shops**. It solves unique-SKU chaos across channels: double sales, messy ops, and **VMB** (margin taxation) bookkeeping. The idea is a **digital twin** of shop inventory—**real-time stock sync**, AI-assisted listing, and a **kill-switch** that pulls listings the moment something sells in-store.
@@ -10,6 +12,18 @@ Stack: **TanStack Start** (SSR + admin UX) and **Convex** (backend + realtime da
 
 - **Visual and UX rules:** `[DESIGNGUIDELINES.md](./DESIGNGUIDELINES.md)` — “Utilitarian Heritage,” palette (deep forest, terracotta accent, paper background), typography (Plus Jakarta Sans / Inter / JetBrains Mono for data), cards and buttons.
 - **Convex patterns:** `.cursor/rules/convex_rules.mdc` and Convex skills/rules in the workspace.
+
+## Borttagning (standard)
+
+- **Ingen omedelbar hård borttagning** av användardata: använd **mjuk borttagning** (`deletedAt` tidsstämpel i ms, fältet utelämnat = aktiv rad).
+- **Rensning i bakgrunden** efter **14 dagar** rensar jobbet bort rader (och tillhörande lagring där det är relevant). Konstant: `shared/retention.ts` (`SOFT_DELETE_RETENTION_DAYS` / `softDeleteRetentionMs()`), cron i `convex/crons.ts`.
+- Nya tabeller ska följa samma mönster om de behöver borttagning.
+
+## Bekräftelsedialog (UI)
+
+- Använd **inte** `window.confirm` / `window.alert` för steg i appen. Använd istället **`useConfirm` från `~/lib/confirm`**, i kombination med **`<ConfirmProvider>`** (redan inbäddad i `src/router.tsx` under `ShopSessionProvider`).
+- Samma märke, typografi och knapplayout (mörkgrön primär, **terracotta** för destruktiva händelser via `variant: 'danger'`) så bekräftelser upplevs enhetliga. API: `const confirm = useConfirm();` sedan `if (!(await confirm({ title, description, ... }))) return;`.
+- Utöka stilar bara i `src/lib/confirm.tsx` så allt nya följer samma nivå.
 
 ## Defaults for changes
 

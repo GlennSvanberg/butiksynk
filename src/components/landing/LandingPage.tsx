@@ -1,4 +1,6 @@
 import { Link } from '@tanstack/react-router'
+import { DEMO_SHOP_SLUG } from '../../../shared/shopConstants'
+import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
 
 function LogoMark({ className }: { className?: string }) {
   return (
@@ -54,18 +56,43 @@ function Header() {
             Kill-switch
           </a>
           <Link
-            to="/demoshop"
+            to="/butik/$shopSlug"
+            params={{ shopSlug: DEMO_SHOP_SLUG }}
+            search={emptyButikListingSearch}
             className="transition hover:text-brand-dark"
           >
             Demoshop
           </Link>
+          <Link
+            to="/login"
+            search={{ redirect: undefined }}
+            className="transition hover:text-brand-dark"
+          >
+            Logga in
+          </Link>
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
-            to="/demoshop"
+            to="/login"
+            search={{ redirect: undefined }}
+            className="rounded-lg px-3 py-2 text-sm font-medium text-brand-dark transition hover:bg-brand-dark/5 hover:text-brand-dark md:hidden"
+          >
+            Logga in
+          </Link>
+          <Link
+            to="/butik/$shopSlug"
+            params={{ shopSlug: DEMO_SHOP_SLUG }}
+            search={emptyButikListingSearch}
             className="rounded-lg px-3 py-2 text-sm font-medium text-brand-dark/70 transition hover:bg-brand-dark/5 hover:text-brand-dark md:hidden"
           >
             Demoshop
+          </Link>
+          <Link
+            to="/login"
+            search={{ redirect: undefined }}
+            className="hidden rounded-lg px-3 py-2 text-sm font-medium text-brand-dark transition hover:bg-brand-dark/5 hover:text-brand-dark md:inline-flex"
+          >
+            Logga in
           </Link>
           <a
             href="#kontakt"
@@ -116,7 +143,16 @@ function Hero() {
             Se funktionerna
           </a>
           <Link
-            to="/demoshop"
+            to="/login"
+            search={{ redirect: undefined }}
+            className="inline-flex items-center justify-center rounded-lg border border-brand-dark/20 bg-brand-surface px-5 py-3 text-sm font-semibold text-brand-dark shadow-sm transition hover:border-brand-dark/35"
+          >
+            Logga in
+          </Link>
+          <Link
+            to="/butik/$shopSlug"
+            params={{ shopSlug: DEMO_SHOP_SLUG }}
+            search={emptyButikListingSearch}
             className="inline-flex items-center justify-center rounded-lg border border-brand-dark/20 bg-brand-surface px-5 py-3 text-sm font-semibold text-brand-dark shadow-sm transition hover:border-brand-dark/35"
           >
             Öppna demoshop

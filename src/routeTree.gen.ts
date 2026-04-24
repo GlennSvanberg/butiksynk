@@ -9,13 +9,28 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as AnotherPageRouteImport } from './routes/anotherPage'
 import { Route as DemoshopRouteRouteImport } from './routes/demoshop/route'
+import { Route as AppRouteRouteImport } from './routes/app/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DemoshopIndexRouteImport } from './routes/demoshop/index'
+import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as DemoshopSnabbRouteImport } from './routes/demoshop/snabb'
 import { Route as DemoshopNyRouteImport } from './routes/demoshop/ny'
+import { Route as AppSnabbRouteImport } from './routes/app/snabb'
+import { Route as ButikShopSlugRouteRouteImport } from './routes/butik/$shopSlug/route'
+import { Route as ButikShopSlugIndexRouteImport } from './routes/butik/$shopSlug/index'
+import { Route as AppProdukterNyRouteImport } from './routes/app/produkter/ny'
+import { Route as AppButikDesignRouteImport } from './routes/app/butik/design'
+import { Route as ButikShopSlugVaraProductIdRouteImport } from './routes/butik/$shopSlug/vara/$productId'
+import { Route as AppProdukterProductIdRedigeraRouteImport } from './routes/app/produkter/$productId/redigera'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AnotherPageRoute = AnotherPageRouteImport.update({
   id: '/anotherPage',
   path: '/anotherPage',
@@ -24,6 +39,11 @@ const AnotherPageRoute = AnotherPageRouteImport.update({
 const DemoshopRouteRoute = DemoshopRouteRouteImport.update({
   id: '/demoshop',
   path: '/demoshop',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRouteRoute = AppRouteRouteImport.update({
+  id: '/app',
+  path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -36,6 +56,11 @@ const DemoshopIndexRoute = DemoshopIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DemoshopRouteRoute,
 } as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const DemoshopSnabbRoute = DemoshopSnabbRouteImport.update({
   id: '/snabb',
   path: '/snabb',
@@ -46,60 +71,168 @@ const DemoshopNyRoute = DemoshopNyRouteImport.update({
   path: '/ny',
   getParentRoute: () => DemoshopRouteRoute,
 } as any)
+const AppSnabbRoute = AppSnabbRouteImport.update({
+  id: '/snabb',
+  path: '/snabb',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const ButikShopSlugRouteRoute = ButikShopSlugRouteRouteImport.update({
+  id: '/butik/$shopSlug',
+  path: '/butik/$shopSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ButikShopSlugIndexRoute = ButikShopSlugIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ButikShopSlugRouteRoute,
+} as any)
+const AppProdukterNyRoute = AppProdukterNyRouteImport.update({
+  id: '/produkter/ny',
+  path: '/produkter/ny',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppButikDesignRoute = AppButikDesignRouteImport.update({
+  id: '/butik/design',
+  path: '/butik/design',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const ButikShopSlugVaraProductIdRoute =
+  ButikShopSlugVaraProductIdRouteImport.update({
+    id: '/vara/$productId',
+    path: '/vara/$productId',
+    getParentRoute: () => ButikShopSlugRouteRoute,
+  } as any)
+const AppProdukterProductIdRedigeraRoute =
+  AppProdukterProductIdRedigeraRouteImport.update({
+    id: '/produkter/$productId/redigera',
+    path: '/produkter/$productId/redigera',
+    getParentRoute: () => AppRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app': typeof AppRouteRouteWithChildren
   '/demoshop': typeof DemoshopRouteRouteWithChildren
   '/anotherPage': typeof AnotherPageRoute
+  '/login': typeof LoginRoute
+  '/butik/$shopSlug': typeof ButikShopSlugRouteRouteWithChildren
+  '/app/snabb': typeof AppSnabbRoute
   '/demoshop/ny': typeof DemoshopNyRoute
   '/demoshop/snabb': typeof DemoshopSnabbRoute
+  '/app/': typeof AppIndexRoute
   '/demoshop/': typeof DemoshopIndexRoute
+  '/app/butik/design': typeof AppButikDesignRoute
+  '/app/produkter/ny': typeof AppProdukterNyRoute
+  '/butik/$shopSlug/': typeof ButikShopSlugIndexRoute
+  '/app/produkter/$productId/redigera': typeof AppProdukterProductIdRedigeraRoute
+  '/butik/$shopSlug/vara/$productId': typeof ButikShopSlugVaraProductIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/anotherPage': typeof AnotherPageRoute
+  '/login': typeof LoginRoute
+  '/app/snabb': typeof AppSnabbRoute
   '/demoshop/ny': typeof DemoshopNyRoute
   '/demoshop/snabb': typeof DemoshopSnabbRoute
+  '/app': typeof AppIndexRoute
   '/demoshop': typeof DemoshopIndexRoute
+  '/app/butik/design': typeof AppButikDesignRoute
+  '/app/produkter/ny': typeof AppProdukterNyRoute
+  '/butik/$shopSlug': typeof ButikShopSlugIndexRoute
+  '/app/produkter/$productId/redigera': typeof AppProdukterProductIdRedigeraRoute
+  '/butik/$shopSlug/vara/$productId': typeof ButikShopSlugVaraProductIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app': typeof AppRouteRouteWithChildren
   '/demoshop': typeof DemoshopRouteRouteWithChildren
   '/anotherPage': typeof AnotherPageRoute
+  '/login': typeof LoginRoute
+  '/butik/$shopSlug': typeof ButikShopSlugRouteRouteWithChildren
+  '/app/snabb': typeof AppSnabbRoute
   '/demoshop/ny': typeof DemoshopNyRoute
   '/demoshop/snabb': typeof DemoshopSnabbRoute
+  '/app/': typeof AppIndexRoute
   '/demoshop/': typeof DemoshopIndexRoute
+  '/app/butik/design': typeof AppButikDesignRoute
+  '/app/produkter/ny': typeof AppProdukterNyRoute
+  '/butik/$shopSlug/': typeof ButikShopSlugIndexRoute
+  '/app/produkter/$productId/redigera': typeof AppProdukterProductIdRedigeraRoute
+  '/butik/$shopSlug/vara/$productId': typeof ButikShopSlugVaraProductIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/app'
     | '/demoshop'
     | '/anotherPage'
+    | '/login'
+    | '/butik/$shopSlug'
+    | '/app/snabb'
     | '/demoshop/ny'
     | '/demoshop/snabb'
+    | '/app/'
     | '/demoshop/'
+    | '/app/butik/design'
+    | '/app/produkter/ny'
+    | '/butik/$shopSlug/'
+    | '/app/produkter/$productId/redigera'
+    | '/butik/$shopSlug/vara/$productId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/anotherPage' | '/demoshop/ny' | '/demoshop/snabb' | '/demoshop'
+  to:
+    | '/'
+    | '/anotherPage'
+    | '/login'
+    | '/app/snabb'
+    | '/demoshop/ny'
+    | '/demoshop/snabb'
+    | '/app'
+    | '/demoshop'
+    | '/app/butik/design'
+    | '/app/produkter/ny'
+    | '/butik/$shopSlug'
+    | '/app/produkter/$productId/redigera'
+    | '/butik/$shopSlug/vara/$productId'
   id:
     | '__root__'
     | '/'
+    | '/app'
     | '/demoshop'
     | '/anotherPage'
+    | '/login'
+    | '/butik/$shopSlug'
+    | '/app/snabb'
     | '/demoshop/ny'
     | '/demoshop/snabb'
+    | '/app/'
     | '/demoshop/'
+    | '/app/butik/design'
+    | '/app/produkter/ny'
+    | '/butik/$shopSlug/'
+    | '/app/produkter/$productId/redigera'
+    | '/butik/$shopSlug/vara/$productId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRouteRoute: typeof AppRouteRouteWithChildren
   DemoshopRouteRoute: typeof DemoshopRouteRouteWithChildren
   AnotherPageRoute: typeof AnotherPageRoute
+  LoginRoute: typeof LoginRoute
+  ButikShopSlugRouteRoute: typeof ButikShopSlugRouteRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/anotherPage': {
       id: '/anotherPage'
       path: '/anotherPage'
@@ -112,6 +245,13 @@ declare module '@tanstack/react-router' {
       path: '/demoshop'
       fullPath: '/demoshop'
       preLoaderRoute: typeof DemoshopRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -128,6 +268,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoshopIndexRouteImport
       parentRoute: typeof DemoshopRouteRoute
     }
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/demoshop/snabb': {
       id: '/demoshop/snabb'
       path: '/snabb'
@@ -142,8 +289,77 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoshopNyRouteImport
       parentRoute: typeof DemoshopRouteRoute
     }
+    '/app/snabb': {
+      id: '/app/snabb'
+      path: '/snabb'
+      fullPath: '/app/snabb'
+      preLoaderRoute: typeof AppSnabbRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/butik/$shopSlug': {
+      id: '/butik/$shopSlug'
+      path: '/butik/$shopSlug'
+      fullPath: '/butik/$shopSlug'
+      preLoaderRoute: typeof ButikShopSlugRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/butik/$shopSlug/': {
+      id: '/butik/$shopSlug/'
+      path: '/'
+      fullPath: '/butik/$shopSlug/'
+      preLoaderRoute: typeof ButikShopSlugIndexRouteImport
+      parentRoute: typeof ButikShopSlugRouteRoute
+    }
+    '/app/produkter/ny': {
+      id: '/app/produkter/ny'
+      path: '/produkter/ny'
+      fullPath: '/app/produkter/ny'
+      preLoaderRoute: typeof AppProdukterNyRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/butik/design': {
+      id: '/app/butik/design'
+      path: '/butik/design'
+      fullPath: '/app/butik/design'
+      preLoaderRoute: typeof AppButikDesignRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/butik/$shopSlug/vara/$productId': {
+      id: '/butik/$shopSlug/vara/$productId'
+      path: '/vara/$productId'
+      fullPath: '/butik/$shopSlug/vara/$productId'
+      preLoaderRoute: typeof ButikShopSlugVaraProductIdRouteImport
+      parentRoute: typeof ButikShopSlugRouteRoute
+    }
+    '/app/produkter/$productId/redigera': {
+      id: '/app/produkter/$productId/redigera'
+      path: '/produkter/$productId/redigera'
+      fullPath: '/app/produkter/$productId/redigera'
+      preLoaderRoute: typeof AppProdukterProductIdRedigeraRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
   }
 }
+
+interface AppRouteRouteChildren {
+  AppSnabbRoute: typeof AppSnabbRoute
+  AppIndexRoute: typeof AppIndexRoute
+  AppButikDesignRoute: typeof AppButikDesignRoute
+  AppProdukterNyRoute: typeof AppProdukterNyRoute
+  AppProdukterProductIdRedigeraRoute: typeof AppProdukterProductIdRedigeraRoute
+}
+
+const AppRouteRouteChildren: AppRouteRouteChildren = {
+  AppSnabbRoute: AppSnabbRoute,
+  AppIndexRoute: AppIndexRoute,
+  AppButikDesignRoute: AppButikDesignRoute,
+  AppProdukterNyRoute: AppProdukterNyRoute,
+  AppProdukterProductIdRedigeraRoute: AppProdukterProductIdRedigeraRoute,
+}
+
+const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
+  AppRouteRouteChildren,
+)
 
 interface DemoshopRouteRouteChildren {
   DemoshopNyRoute: typeof DemoshopNyRoute
@@ -161,10 +377,26 @@ const DemoshopRouteRouteWithChildren = DemoshopRouteRoute._addFileChildren(
   DemoshopRouteRouteChildren,
 )
 
+interface ButikShopSlugRouteRouteChildren {
+  ButikShopSlugIndexRoute: typeof ButikShopSlugIndexRoute
+  ButikShopSlugVaraProductIdRoute: typeof ButikShopSlugVaraProductIdRoute
+}
+
+const ButikShopSlugRouteRouteChildren: ButikShopSlugRouteRouteChildren = {
+  ButikShopSlugIndexRoute: ButikShopSlugIndexRoute,
+  ButikShopSlugVaraProductIdRoute: ButikShopSlugVaraProductIdRoute,
+}
+
+const ButikShopSlugRouteRouteWithChildren =
+  ButikShopSlugRouteRoute._addFileChildren(ButikShopSlugRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRouteRoute: AppRouteRouteWithChildren,
   DemoshopRouteRoute: DemoshopRouteRouteWithChildren,
   AnotherPageRoute: AnotherPageRoute,
+  LoginRoute: LoginRoute,
+  ButikShopSlugRouteRoute: ButikShopSlugRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
