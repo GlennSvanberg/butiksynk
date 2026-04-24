@@ -12,8 +12,8 @@ import {
   Target,
 } from 'lucide-react'
 import {
-  DEMO_SHOWCASE_PRODUCT_ID,
   DEMO_SHOP_SLUG,
+  DEMO_SHOWCASE_PRODUCT_ID,
 } from '../../../shared/shopConstants'
 import { SelioLogoMark } from '~/components/SelioLogoMark'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
@@ -181,7 +181,7 @@ function Hero() {
               icon: Sparkles,
               k: 'Listning',
               t: 'AI-stöd',
-              d: 'Foto och metadata i samma flöde när du lägger upp produkter.',
+              d: 'Foto och metadata i samma flöde när du lägger upp varor.',
             },
             {
               icon: Store,
@@ -220,17 +220,17 @@ function Hero() {
 const fromPhotoSteps = [
   {
     title: 'Foto',
-    body: 'I snabb inlämning tar du en bild (eller flera i rad). AI föreslår titel, pris och text medan du jobbar.',
+    body: 'I Ny vara tar du en bild (eller flera i rad). AI föreslår titel, pris och text medan du jobbar.',
     icon: Camera,
   },
   {
     title: 'Granska & spara',
-    body: 'På översikten eller i redigeringen justerar du, godkänner och publicerar när allt stämmer.',
+    body: 'I Varor eller i redigeringen justerar du, godkänner och publicerar när allt stämmer.',
     icon: CheckCircle2,
   },
   {
     title: 'Syns i butiken',
-    body: 'Samma vara ligger strax i er publika butikssida — samma data som i admin, utan manuell uppdatering.',
+    body: 'Samma vara ligger strax i er publika butikssida — samma data som i verktyget, utan manuell uppdatering.',
     icon: Store,
   },
 ] as const
@@ -291,7 +291,7 @@ function SectionFromPhotoToShop() {
               Prova utan eget lager
             </p>
             <p className="mt-1.5 text-sm text-brand-dark/70">
-              Logga in med demot och gå till snabb inlämning, eller titta i
+              Logga in med demot och gå till Ny vara, eller titta i
               exempelbutiken ovanför.
             </p>
           </div>
@@ -343,7 +343,7 @@ const pillars = [
   {
     title: 'Publik butikslista',
     mono: '/butik/…',
-    body: 'En snabb sida över lagret som du kan länka till — samma data som i adminläget.',
+    body: 'En snabb sida över lagret som du kan länka till — samma data som i verktyget.',
     icon: Store,
   },
   {
@@ -355,7 +355,7 @@ const pillars = [
   {
     title: 'Realtid i verktyget',
     mono: 'Convex',
-    body: 'När någon ändrar en produkt syns det för övriga som är inloggade utan manuell refresh.',
+    body: 'När någon ändrar en vara syns det för övriga som är inloggade utan manuell refresh.',
     icon: Radio,
   },
 ] as const
@@ -428,7 +428,7 @@ function SectionCapabilities() {
           Det här levererar vi nu
         </h2>
         <p className="mt-3 max-w-2xl text-brand-dark/70">
-          Tre byggstenar du kan testa i exempelbutiken och i adminläget — utan
+          Tre byggstenar du kan testa i exempelbutiken och i verktyget — utan
           att vi lovar mer än vad som finns i koden.
         </p>
 

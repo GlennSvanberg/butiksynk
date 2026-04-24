@@ -3,9 +3,9 @@ import { convexQuery } from '@convex-dev/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Link, Outlet, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useConvexAuth } from 'convex/react'
-import type { CSSProperties } from 'react'
 import * as React from 'react'
 import { api } from '../../../../convex/_generated/api'
+import type { CSSProperties } from 'react'
 import { AdminAppNav } from '~/components/AdminAppNav'
 import { defaultLoginSearch } from '~/lib/loginSearch'
 import { useShopSession } from '~/lib/shopSession'
@@ -74,24 +74,40 @@ function ButikStorefrontLayout() {
 
   if (isPending) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-[#f9f8f6] font-sans text-sm text-[#1b3a29]/75">
-        Laddar …
+      <div className="flex min-h-dvh items-center justify-center bg-brand-bg bg-paper-grain px-4 font-sans text-sm text-brand-dark/75">
+        <div className="w-full max-w-sm rounded-2xl border border-brand-dark/10 bg-brand-surface/90 p-6 text-center shadow-sm">
+          <div className="mx-auto mb-4 size-10 rounded-full bg-brand-dark/8" />
+          <p className="font-heading text-base font-semibold text-brand-dark">
+            Laddar butik
+          </p>
+          <p className="mt-1 text-sm text-brand-dark/60">
+            Vi hämtar sortiment och butiksprofil.
+          </p>
+        </div>
       </div>
     )
   }
 
   if (!branding) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-[#f9f8f6] px-4 text-center font-sans">
-        <p className="font-heading text-xl font-semibold text-[#1b3a29]">
-          Butiken hittades inte
-        </p>
-        <Link
-          to="/"
-          className="text-sm font-medium text-[#1b3a29] underline decoration-[#1b3a29]/30 underline-offset-4"
-        >
-          Till startsidan
-        </Link>
+      <div className="flex min-h-dvh items-center justify-center bg-brand-bg bg-paper-grain px-4 text-center font-sans">
+        <div className="w-full max-w-md rounded-2xl border border-brand-dark/10 bg-brand-surface p-8 shadow-sm">
+          <p className="font-mono text-xs font-medium uppercase tracking-wider text-brand-dark/45">
+            Kundbutik
+          </p>
+          <p className="mt-2 font-heading text-2xl font-semibold tracking-tight text-brand-dark">
+            Butiken hittades inte
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-brand-dark/65">
+            Kontrollera länken eller gå tillbaka till Selios startsida.
+          </p>
+          <Link
+            to="/"
+            className="mt-6 inline-flex items-center justify-center rounded-lg bg-brand-dark px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90"
+          >
+            Till startsidan
+          </Link>
+        </div>
       </div>
     )
   }
@@ -114,7 +130,7 @@ function ButikStorefrontLayout() {
 
   return (
     <div
-      className="min-h-dvh bg-paper-grain font-sans text-[var(--sf-text)]"
+      className="flex min-h-dvh flex-col bg-paper-grain font-sans text-[var(--sf-text)]"
       style={{ ...style, backgroundColor: 'var(--sf-bg)' }}
     >
       {showOwnerAdminNav ? (
@@ -125,31 +141,38 @@ function ButikStorefrontLayout() {
           onLogout={onLogout}
         />
       ) : null}
-      <header className="relative z-10 border-b border-[color:var(--sf-primary)]/15 bg-[var(--sf-bg)]/95 backdrop-blur-md">
-        <div className="flex w-full flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8 xl:px-10">
-          <div className="flex min-w-0 items-center gap-3">
+      <header className="relative z-10 border-b border-[color:var(--sf-primary)]/12 bg-[var(--sf-bg)]/92 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
             {branding.logoUrl ? (
               <img
                 src={branding.logoUrl}
-                alt=""
-                className="h-10 max-w-[10rem] shrink-0 object-contain"
+                alt={`${branding.displayName} logotyp`}
+                className="h-11 max-w-[9rem] shrink-0 rounded-md object-contain sm:h-12 sm:max-w-[12rem]"
               />
-            ) : null}
+            ) : (
+              <span
+                className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[color:var(--sf-primary)]/12 bg-[var(--sf-surface)] font-heading text-lg font-bold text-[color:var(--sf-primary)] shadow-sm sm:size-12"
+                aria-hidden
+              >
+                {branding.displayName.trim().charAt(0).toLocaleUpperCase('sv')}
+              </span>
+            )}
             <div className="min-w-0">
-              <p className="font-mono text-xs font-medium uppercase tracking-wider text-[color:var(--sf-primary)]/50">
-                Butik
+              <p className="font-mono text-[0.68rem] font-medium uppercase tracking-[0.18em] text-[color:var(--sf-primary)]/50">
+                Kundbutik
               </p>
-              <h1 className="font-heading text-xl font-bold tracking-tight text-[color:var(--sf-primary)] sm:text-2xl">
+              <h1 className="truncate font-heading text-xl font-bold tracking-tight text-[color:var(--sf-primary)] sm:text-2xl">
                 {branding.displayName}
               </h1>
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             {!showOwnerAdminNav ? (
               <Link
                 to="/login"
-                search={{ ...defaultLoginSearch, redirect: '/app/snabb' }}
-                className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+                search={{ ...defaultLoginSearch, redirect: '/app/varor/ny' }}
+                className="inline-flex items-center justify-center rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
                 style={{ backgroundColor: 'var(--sf-primary)' }}
               >
                 Sälj via Selio
@@ -157,7 +180,7 @@ function ButikStorefrontLayout() {
             ) : null}
             <Link
               to="/"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-[color:var(--sf-primary)]/80 transition hover:bg-[color:var(--sf-primary)]/5"
+              className="rounded-lg px-3 py-2.5 text-sm font-medium text-[color:var(--sf-primary)]/80 transition hover:bg-[color:var(--sf-primary)]/6"
             >
               Startsida
             </Link>
@@ -167,54 +190,70 @@ function ButikStorefrontLayout() {
 
       <Outlet />
 
-      {hasContact ? (
-        <footer className="mt-auto border-t border-[color:var(--sf-primary)]/10 bg-[var(--sf-surface)] px-4 py-8 sm:px-6 lg:px-8 xl:px-10">
-          <div className="w-full">
-            <p className="font-mono text-xs font-medium uppercase tracking-wider text-[color:var(--sf-primary)]/50">
-              Kontakt
+      <footer className="mt-auto border-t border-[color:var(--sf-primary)]/10 bg-[var(--sf-surface)]/95 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        <div className="mx-auto grid w-full max-w-7xl gap-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+          <div>
+            <p className="font-heading text-base font-semibold text-[color:var(--sf-primary)]">
+              {branding.displayName}
             </p>
-            <ul className="mt-3 space-y-1 text-sm text-[color:var(--sf-primary)]/85">
-              {branding.contactEmail?.trim() ? (
-                <li>
-                  <a
-                    href={`mailto:${branding.contactEmail.trim()}`}
-                    className="underline decoration-[color:var(--sf-primary)]/25 underline-offset-2"
-                  >
-                    {branding.contactEmail.trim()}
-                  </a>
-                </li>
-              ) : null}
-              {branding.contactPhone?.trim() ? (
-                <li>
-                  <a
-                    href={`tel:${branding.contactPhone.trim().replace(/\s+/g, '')}`}
-                    className="underline decoration-[color:var(--sf-primary)]/25 underline-offset-2"
-                  >
-                    {branding.contactPhone.trim()}
-                  </a>
-                </li>
-              ) : null}
-              {branding.contactWebsite?.trim() ? (
-                <li>
-                  <a
-                    href={branding.contactWebsite.trim()}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline decoration-[color:var(--sf-primary)]/25 underline-offset-2"
-                  >
-                    {branding.contactWebsite.trim()}
-                  </a>
-                </li>
-              ) : null}
-              {branding.contactNote?.trim() ? (
-                <li className="whitespace-pre-line pt-1">
-                  {branding.contactNote.trim()}
-                </li>
-              ) : null}
-            </ul>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-[color:var(--sf-primary)]/62">
+              Aktuellt sortiment från butiken, uppdaterat när varorna ändras i
+              Selio.
+            </p>
           </div>
-        </footer>
-      ) : null}
+
+          <div className="rounded-xl border border-[color:var(--sf-primary)]/10 bg-[var(--sf-bg)]/45 p-4 shadow-sm sm:min-w-72">
+            <p className="font-mono text-xs font-medium uppercase tracking-wider text-[color:var(--sf-primary)]/50">
+              {hasContact ? 'Kontakt' : 'Kontaktuppgifter'}
+            </p>
+            {hasContact ? (
+              <ul className="mt-3 space-y-2 text-sm text-[color:var(--sf-primary)]/85">
+                {branding.contactEmail?.trim() ? (
+                  <li>
+                    <a
+                      href={`mailto:${branding.contactEmail.trim()}`}
+                      className="font-medium underline decoration-[color:var(--sf-primary)]/25 underline-offset-4 transition hover:decoration-[color:var(--sf-primary)]/55"
+                    >
+                      {branding.contactEmail.trim()}
+                    </a>
+                  </li>
+                ) : null}
+                {branding.contactPhone?.trim() ? (
+                  <li>
+                    <a
+                      href={`tel:${branding.contactPhone.trim().replace(/\s+/g, '')}`}
+                      className="font-medium underline decoration-[color:var(--sf-primary)]/25 underline-offset-4 transition hover:decoration-[color:var(--sf-primary)]/55"
+                    >
+                      {branding.contactPhone.trim()}
+                    </a>
+                  </li>
+                ) : null}
+                {branding.contactWebsite?.trim() ? (
+                  <li>
+                    <a
+                      href={branding.contactWebsite.trim()}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium underline decoration-[color:var(--sf-primary)]/25 underline-offset-4 transition hover:decoration-[color:var(--sf-primary)]/55"
+                    >
+                      {branding.contactWebsite.trim()}
+                    </a>
+                  </li>
+                ) : null}
+                {branding.contactNote?.trim() ? (
+                  <li className="whitespace-pre-line pt-1 leading-relaxed text-[color:var(--sf-primary)]/70">
+                    {branding.contactNote.trim()}
+                  </li>
+                ) : null}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm leading-relaxed text-[color:var(--sf-primary)]/62">
+                Kontakta butiken direkt för frågor om varor och öppettider.
+              </p>
+            )}
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

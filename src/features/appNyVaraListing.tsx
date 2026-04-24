@@ -1,14 +1,10 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api } from '../../../convex/_generated/api'
-import type { Id } from '../../../convex/_generated/dataModel'
+import { api } from '../../convex/_generated/api'
+import type { Id } from '../../convex/_generated/dataModel'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
 import { useShopSession } from '~/lib/shopSession'
-
-export const Route = createFileRoute('/app/snabb')({
-  component: AppSnabbListingPage,
-})
 
 type QueueItem = {
   id: string
@@ -80,7 +76,7 @@ async function openUserMediaWithFallbacks(): Promise<MediaStream> {
   )
 }
 
-function AppSnabbListingPage() {
+export function AppSnabbListingPage() {
   const { session } = useShopSession()
   const generateUploadUrl = useMutation(api.products.generateUploadUrl)
   const createProductFromPhotoCapture = useMutation(
@@ -294,11 +290,9 @@ function AppSnabbListingPage() {
     }
     v.srcObject = activeCameraStream
     const p = v.play()
-    if (p) {
-      void p.catch(() => {
-        // Ignored: autoplay policies; user is already in camera mode
-      })
-    }
+    void p.catch(() => {
+      // Ignored: autoplay policies; user is already in camera mode
+    })
     return () => {
       v.srcObject = null
     }
@@ -437,10 +431,10 @@ function AppSnabbListingPage() {
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <header className="mb-6">
         <p className="font-mono text-xs font-medium uppercase tracking-wider text-brand-dark/50">
-          Admin · {session.shopName}
+          Verktyg · {session.shopName}
         </p>
         <h1 className="font-heading text-2xl font-bold text-brand-dark sm:text-3xl">
-          Skapa artikel
+          Ny vara
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-brand-dark/75">
           Ta ett foto — AI föreslår titel, pris och text. Fortsätt med fler
@@ -700,10 +694,10 @@ function AppSnabbListingPage() {
 
       <nav className="mt-8 flex flex-col gap-3 text-center text-sm sm:text-left">
         <Link
-          to="/app"
+          to="/app/varor"
           className="font-medium text-brand-dark underline decoration-brand-dark/30 underline-offset-4 hover:decoration-brand-dark"
         >
-          Till översikt
+          Till varor
         </Link>
         <Link
           to="/butik/$shopSlug"
@@ -819,7 +813,7 @@ function QueueReviewRow({
     return (
       <li className="overflow-hidden rounded-md bg-brand-bg">
         <Link
-          to="/app/produkter/$productId/redigera"
+          to="/app/varor/$productId/redigera"
           params={{ productId: item.productId }}
           className="flex items-center gap-3 px-3 py-2 transition hover:bg-brand-dark/5"
         >

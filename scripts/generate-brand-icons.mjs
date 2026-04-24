@@ -1,11 +1,14 @@
 /**
- * Generates favicon / PWA PNGs from the transparent master at repo root: selio.png
- * Run: node scripts/generate-brand-icons.mjs
+ * Generates favicon / PWA PNGs from repo root selio.png.
+ * - Autocrops uniform transparent margins (no Photoshop).
+ * - Uses cover() so the mark fills each square size (tiny edge crop vs letterboxing).
+ * Run: npm run build:icons
  */
-import { copyFile } from 'node:fs/promises'
+import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Jimp } from 'jimp'
+import pngToIco from 'png-to-ico'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -21,17 +24,38 @@ const outputs = [
   ['android-chrome-512x512.png', 512],
 ]
 
+/** Tight bounding box on non-transparent pixels; tolerates soft PNG edges. */
+function trimTransparent(source) {
+  const img = source.clone()
+  img.autocrop({ tolerance: 0.12, cropOnlyFrames: false })
+  if (img.bitmap.width < 4 || img.bitmap.height < 4) {
+    return source.clone()
+  }
+  return img
+}
+
 async function main() {
   await copyFile(srcPath, join(publicDir, 'selio.png'))
-  const base = await Jimp.read(srcPath)
-  base.background = 0
+
+  const master = await Jimp.read(srcPath)
+  const glyph = trimTransparent(master)
 
   for (const [filename, size] of outputs) {
-    const img = base.clone().contain({ w: size, h: size })
+    const img = glyph.clone()
+    img.background = 0
+    img.cover({ w: size, h: size })
     await img.write(join(publicDir, filename))
   }
 
-  console.log('Brand icons written from selio.png → public/')
+  const ico = await pngToIco([
+    await readFile(join(publicDir, 'favicon-16x16.png')),
+    await readFile(join(publicDir, 'favicon-32x32.png')),
+  ])
+  await writeFile(join(publicDir, 'favicon.ico'), ico)
+
+  console.log(
+    'Brand icons + favicon.ico written (trimmed + cover) from selio.png → public/',
+  )
 }
 
 main().catch((err) => {

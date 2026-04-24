@@ -1,8 +1,8 @@
-# PROJECT CONTEXT: BUTIKSYNK
+# PROJECT CONTEXT: SELIO
 
 ## ​1. CORE MISSION
 
-​Butiksynk är ett specialiserat PIM-system (Product Information Management) för second hand- och vintagebutiker.
+​Selio är ett specialiserat PIM-system (Product Information Management) för second hand- och vintagebutiker.
 
 - ​**Problem:** Att sälja unika varor (Single SKU) på flera kanaler samtidigt leder till dubbelförsäljning och administrativt kaos med Vinstmarginalbeskattning (VMB).
 - ​**Lösning:** En "Digital Tvilling" av butikens lager med AI-driven listning och en realtids "Kill-switch" som tar bort annonser sekunden varan säljs i fysisk butik.
@@ -34,7 +34,7 @@
 - ​**Primary (Deep Forest):** #1B3A29 (Används för logotyp, primära knappar, headers).
 - ​**Secondary (Terracotta):** #C05746 (Används för Kill-switch, "SÅLD", och viktiga actions).
 - ​**Background (Paper):** #F9F8F6 (Huvudsaklig bakgrundsfärg för appen).
-- ​**Surface (White):** #FFFFFF (Kort och ytor för produkter).
+- ​**Surface (White):** #FFFFFF (Kort och ytor för varor).
 - ​**Text (Main):** #1A1A1A (Hög läsbarhet).
 - ​**Success (Green):** #2D6A4F (Bekräftelse på synk).
 

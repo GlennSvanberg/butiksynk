@@ -62,24 +62,31 @@ export function StorefrontDesignPreview({
 
   return (
     <div
-      className="overflow-hidden rounded-xl border border-brand-dark/15 bg-paper-grain font-sans text-[var(--sf-text)] shadow-md"
+      className="overflow-hidden rounded-2xl border border-brand-dark/15 bg-paper-grain font-sans text-[var(--sf-text)] shadow-md"
       style={{ ...style, backgroundColor: 'var(--sf-bg)' }}
     >
-      <header className="border-b border-[color:var(--sf-primary)]/15 bg-[var(--sf-bg)]/95">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
-          <div className="flex min-w-0 items-center gap-2">
+      <header className="border-b border-[color:var(--sf-primary)]/12 bg-[var(--sf-bg)]/95">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-3.5 sm:px-4">
+          <div className="flex min-w-0 items-center gap-2.5">
             {logoUrl ? (
               <img
                 src={logoUrl}
-                alt=""
-                className="h-9 max-w-[9rem] shrink-0 object-contain"
+                alt={`${displayName} logotyp`}
+                className="h-10 max-w-[8rem] shrink-0 rounded-md object-contain"
               />
-            ) : null}
+            ) : (
+              <span
+                className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[color:var(--sf-primary)]/12 bg-[var(--sf-surface)] font-heading text-base font-bold text-[color:var(--sf-primary)] shadow-sm"
+                aria-hidden
+              >
+                {displayName.trim().charAt(0).toLocaleUpperCase('sv')}
+              </span>
+            )}
             <div className="min-w-0">
-              <p className="font-mono text-[10px] font-medium uppercase tracking-wider text-[color:var(--sf-primary)]/50 sm:text-xs">
-                Butik
+              <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-[color:var(--sf-primary)]/50">
+                Kundbutik
               </p>
-              <p className="font-heading text-lg font-bold tracking-tight text-[color:var(--sf-primary)] sm:text-xl">
+              <p className="truncate font-heading text-lg font-bold tracking-tight text-[color:var(--sf-primary)] sm:text-xl">
                 {displayName}
               </p>
             </div>
@@ -99,56 +106,65 @@ export function StorefrontDesignPreview({
       </header>
 
       <div
-        className="border-b border-[color:var(--sf-primary)]/8 border-l-[3px] px-3 py-6 sm:px-4"
+        className="border-b border-[color:var(--sf-primary)]/8 px-3 py-5 sm:px-4"
         style={{ borderLeftColor: 'var(--sf-accent)' }}
       >
-        <p className="text-xs leading-relaxed text-[color:var(--sf-primary)]/55 sm:text-sm">
-          Produktlistan visas här i den riktiga butiken. Ovanför ser du sidhuvud som
-          kunderna möter.
+        <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-[color:var(--sf-primary)]/45">
+          Sortiment
+        </p>
+        <p className="mt-2 font-heading text-xl font-bold tracking-tight text-[color:var(--sf-primary)]">
+          Upptäck varorna i butiken
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-[color:var(--sf-primary)]/60 sm:text-sm">
+          Produktlistan visas här i den riktiga butiken. Sök, filter och kort
+          använder samma färger som förhandsvisningen.
         </p>
       </div>
 
-      {hasContact ? (
-        <footer className="border-t border-[color:var(--sf-primary)]/10 bg-[var(--sf-surface)] px-3 py-5 sm:px-4">
-          <p className="font-mono text-[10px] font-medium uppercase tracking-wider text-[color:var(--sf-primary)]/50 sm:text-xs">
-            Kontakt
+      <footer className="border-t border-[color:var(--sf-primary)]/10 bg-[var(--sf-surface)]/95 px-3 py-5 sm:px-4">
+        <p className="font-heading text-sm font-semibold text-[color:var(--sf-primary)]">
+          {displayName}
+        </p>
+        <div className="mt-3 rounded-xl border border-[color:var(--sf-primary)]/10 bg-[var(--sf-bg)]/45 p-3">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-wider text-[color:var(--sf-primary)]/50">
+            {hasContact ? 'Kontakt' : 'Kontaktuppgifter'}
           </p>
-          <ul className="mt-2 space-y-1 text-xs text-[color:var(--sf-primary)]/85 sm:text-sm">
-            {contactEmail.trim() ? (
-              <li>
-                <span className="underline decoration-[color:var(--sf-primary)]/25 underline-offset-2">
-                  {contactEmail.trim()}
-                </span>
-              </li>
-            ) : null}
-            {contactPhone.trim() ? (
-              <li>
-                <span className="underline decoration-[color:var(--sf-primary)]/25 underline-offset-2">
-                  {contactPhone.trim()}
-                </span>
-              </li>
-            ) : null}
-            {contactWebsite.trim() ? (
-              <li>
-                <span className="underline decoration-[color:var(--sf-primary)]/25 underline-offset-2">
-                  {contactWebsite.trim()}
-                </span>
-              </li>
-            ) : null}
-            {contactNote.trim() ? (
-              <li className="whitespace-pre-line pt-0.5">
-                {contactNote.trim()}
-              </li>
-            ) : null}
-          </ul>
-        </footer>
-      ) : (
-        <footer className="border-t border-dashed border-[color:var(--sf-primary)]/15 bg-[var(--sf-surface)]/50 px-3 py-4 sm:px-4">
-          <p className="text-xs text-[color:var(--sf-primary)]/50 sm:text-sm">
-            Ingen kontaktruta visas förrän minst ett kontaktfält är ifyllt.
-          </p>
-        </footer>
-      )}
+          {hasContact ? (
+            <ul className="mt-2 space-y-1 text-xs text-[color:var(--sf-primary)]/85 sm:text-sm">
+              {contactEmail.trim() ? (
+                <li>
+                  <span className="font-medium underline decoration-[color:var(--sf-primary)]/25 underline-offset-4">
+                    {contactEmail.trim()}
+                  </span>
+                </li>
+              ) : null}
+              {contactPhone.trim() ? (
+                <li>
+                  <span className="font-medium underline decoration-[color:var(--sf-primary)]/25 underline-offset-4">
+                    {contactPhone.trim()}
+                  </span>
+                </li>
+              ) : null}
+              {contactWebsite.trim() ? (
+                <li>
+                  <span className="font-medium underline decoration-[color:var(--sf-primary)]/25 underline-offset-4">
+                    {contactWebsite.trim()}
+                  </span>
+                </li>
+              ) : null}
+              {contactNote.trim() ? (
+                <li className="whitespace-pre-line pt-0.5 leading-relaxed text-[color:var(--sf-primary)]/70">
+                  {contactNote.trim()}
+                </li>
+              ) : null}
+            </ul>
+          ) : (
+            <p className="mt-2 text-xs leading-relaxed text-[color:var(--sf-primary)]/55 sm:text-sm">
+              Kontakta butiken direkt för frågor om varor och öppettider.
+            </p>
+          )}
+        </div>
+      </footer>
     </div>
   )
 }

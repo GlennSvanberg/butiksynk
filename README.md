@@ -1,6 +1,6 @@
-# Butiksynk
+# Selio
 
-**Butiksynk** is a **PIM** (Product Information Management) product aimed at **second-hand and vintage shops** in Sweden. It helps with unique-SKU inventory across channels: fewer double sales, smoother operations, and support for **VMB** (margin taxation) workflows. The product centers on a **digital twin** of shop inventory—real-time stock sync, AI-assisted listing, and the ability to pull listings as soon as something sells in-store.
+**Selio** is a **PIM** (Product Information Management) product aimed at **second-hand and vintage shops** in Sweden. It helps with unique-SKU inventory across channels: fewer double sales, smoother operations, and support for **VMB** (margin taxation) workflows. The product centers on a **digital twin** of shop inventory—real-time stock sync, AI-assisted listing, and the ability to pull listings as soon as something sells in-store.
 
 The customer-facing app is built in **Swedish** for the Swedish market.
 
@@ -21,7 +21,7 @@ The customer-facing app is built in **Swedish** for the Swedish market.
 
    ```bash
    git clone <repository-url>
-   cd butiksynk
+   cd selio
    npm install
    ```
 

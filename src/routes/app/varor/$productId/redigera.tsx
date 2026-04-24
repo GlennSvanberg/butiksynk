@@ -19,8 +19,8 @@ import {
 import { useConfirm } from '~/lib/confirm'
 import { useShopSession } from '~/lib/shopSession'
 
-export const Route = createFileRoute('/app/produkter/$productId/redigera')({
-  component: RedigeraProdukt,
+export const Route = createFileRoute('/app/varor/$productId/redigera')({
+  component: RedigeraVaraPage,
 })
 
 function priceSliderBounds(priceSek: string): { min: number; max: number } {
@@ -44,7 +44,7 @@ function sectionShell(): string {
   return 'border-l-2 border-brand-dark/20 pl-3 sm:pl-4'
 }
 
-function RedigeraProdukt() {
+function RedigeraVaraPage() {
   const { productId: productIdParam } = Route.useParams()
   const { session } = useShopSession()
   const router = useRouter()
@@ -267,7 +267,7 @@ function RedigeraProdukt() {
           attributes: attrs,
           ...(newImageId ? { imageStorageId: newImageId } : {}),
         })
-        void router.navigate({ to: '/app' })
+        void router.navigate({ to: '/app/varor' })
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Kunde inte spara.')
       } finally {
@@ -425,13 +425,13 @@ function RedigeraProdukt() {
   if (getProduct === undefined) {
     return (
       <main className="mx-auto max-w-lg px-4 py-8 sm:px-6">
-        <p className="text-sm text-brand-dark/75">Hämtar produkt …</p>
+        <p className="text-sm text-brand-dark/75">Hämtar vara …</p>
       </main>
     )
   }
 
   if (getProduct === null) {
-    return <Navigate to="/app" replace />
+    return <Navigate to="/app/varor" replace />
   }
 
   const saveDisabled =
@@ -448,16 +448,16 @@ function RedigeraProdukt() {
   return (
     <main className="w-full max-w-[min(100%,90rem)] px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
       <Link
-        to="/app"
+        to="/app/varor"
         className="mb-3 inline-block text-sm font-medium text-brand-dark/80 underline decoration-brand-dark/25 underline-offset-4 hover:decoration-brand-dark/50"
       >
-        ← Tillbaka till översikten
+        ← Tillbaka till varor
       </Link>
 
       {getProduct.captureStatus === 'processing' ? (
         <div className="mb-3 rounded-lg border border-brand-dark/10 bg-brand-surface/90 p-3 text-sm text-brand-dark/80">
           <p>
-            Produkten bearbetas fortfarande av AI. Du kan spara borttagning, men
+            Varan bearbetas fortfarande av AI. Du kan spara borttagning, men
             fält kan inte redigeras tills listningen är klar.
           </p>
         </div>
@@ -486,16 +486,16 @@ function RedigeraProdukt() {
         <div className="sticky top-0 z-20 -mx-4 mb-1 flex flex-col gap-3 border-b border-brand-dark/10 bg-brand-bg/95 px-4 py-3 backdrop-blur-sm sm:-mx-6 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:-mx-8 lg:px-8">
           <header className="min-w-0">
             <p className="font-mono text-[10px] font-medium uppercase tracking-wider text-brand-dark/50 sm:text-xs">
-              Admin · {session.shopName}
+              Verktyg · {session.shopName}
             </p>
             <h1
               className="font-heading text-xl font-bold text-brand-dark sm:text-2xl"
               id={titleId}
             >
-              Redigera produkt
+              Redigera vara
             </h1>
             <p className="mt-0.5 line-clamp-2 text-xs text-brand-dark/70 sm:text-sm">
-              Ändringar syns i översikten och i den publika butiken direkt när de
+              Ändringar syns bland varorna och i den publika butiken direkt när de
               sparats.
             </p>
           </header>
@@ -508,7 +508,7 @@ function RedigeraProdukt() {
               {saving ? 'Sparar…' : 'Spara'}
             </button>
             <Link
-              to="/app"
+              to="/app/varor"
               className="inline-flex items-center justify-center rounded-lg border border-brand-dark/20 bg-white px-4 py-2 text-sm font-semibold text-brand-dark shadow-sm"
             >
               Avbryt
@@ -875,7 +875,7 @@ function RedigeraProdukt() {
               <div className="mt-3 space-y-2 border-t border-brand-dark/8 pt-3">
                 <p className="text-xs text-brand-dark/60">
                   Beskriv ändringar, ton, fakta eller skick — AI uppdaterar
-                  produktdata. Visningsbilden ändras inte.
+                  varudata. Visningsbilden ändras inte.
                 </p>
                 <textarea
                   id="edit-ai-notes"

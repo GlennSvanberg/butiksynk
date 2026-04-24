@@ -1,6 +1,6 @@
-Project Context: Butiksynk (Synkat.io)
+Project Context: Selio
 ​1. Core Mission & Problem Statement
-​Butiksynk är ett specialiserat PIM-system (Product Information Management) för second hand- och vintagebutiker.
+​Selio är ett specialiserat PIM-system (Product Information Management) för second hand- och vintagebutiker.
 
 ​Problemet: Att sälja unika varor (Single SKU) på flera kanaler (fysisk butik, Tradera, Instagram, Blocket) är extremt tidskrävande. Det leder till "dubbelförsäljning" och administrativt kaos med bokföring (VMB).
 ​Lösningen: En "Digital Tvilling" av butikens lager. AI-driven listning på 30 sekunder och en "Atomic Sync" som dödar annonser digitalt sekunden varan säljs fysiskt.
@@ -19,7 +19,7 @@ Project Context: Butiksynk (Synkat.io)
 ​The 30-Second Listing Loop: 1. Användaren tar ett foto.
 2. Nano Banana 2 rensar bakgrunden.
 3. GPT-5.4 genererar Title, Description, Tradera-kategori och pris.
-4. Produkten sparas i Convex med status Available.
+4. Varan sparas i Convex med status Available.
 
 ​Atomic Sync (Kill-switch): * En realtids-dashboard för butikssidan.
 
@@ -29,12 +29,12 @@ Project Context: Butiksynk (Synkat.io)
 
 ​VMB Accounting (Vinstmarginalbeskattning):
 
-​Varje produkt har fält för Inköpspris och Försäljningspris.
+​Varje vara har fält för Inköpspris och Försäljningspris.
 ​Automatisk kalkylering av marginalmoms: (Utpris - Inpris) * 0.2.
 ​Exportvänlig logg för Fortnox/Bokio.
 
 
-​Public Storefront: * En blixtsnabb landningssida för butiken (t.ex. butiksynk.se/majorna-vintage) där kunder kan se aktuellt lagersaldo i realtid.
+​Public Storefront: * En blixtsnabb landningssida för butiken (t.ex. selio.se/majorna-vintage) där kunder kan se aktuellt lagersaldo i realtid.
 
 ​4. Business Logic & Rules
 

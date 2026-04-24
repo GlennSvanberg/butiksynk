@@ -4,7 +4,21 @@ Never ever run the dev server. user always has one terminal running with npm run
 
 ## What this is
 
-**Butiksynk** is a **PIM** (Product Information Management) product for **second-hand and vintage shops**. It solves unique-SKU chaos across channels: double sales, messy ops, and **VMB** (margin taxation) bookkeeping. The idea is a **digital twin** of shop inventory—**real-time stock sync**, AI-assisted listing, and a **kill-switch** that pulls listings the moment something sells in-store.
+**Selio** is a **PIM** (Product Information Management) product for **second-hand and vintage shops**. It solves unique-SKU chaos across channels: double sales, messy ops, and **VMB** (margin taxation) bookkeeping. The idea is a **digital twin** of shop inventory—**real-time stock sync**, AI-assisted listing, and a **kill-switch** that pulls listings the moment something sells in-store.
+
+## Terminologi och vägar
+
+- Produktnamnet är **Selio**. Använd inte det gamla namnet Butiksynk i UI, dokumentation, metadata, paketnamn eller nya tekniska nycklar.
+- Skriv alltid UI på svenska. Målgruppen är svenska second hand- och vintagebutiker.
+- Använd **vara** / **varor** för unika lagerobjekt i användargränssnittet. Undvik att blanda med produkt, artikel eller item i synliga texter.
+- Primära appvägar:
+  - **Varor:** `/app/varor`
+  - **Ny vara:** `/app/varor/ny`
+  - **Redigera vara:** `/app/varor/$productId/redigera`
+  - **Kundbutik:** `/butik/$shopSlug`
+  - **Publik vara:** `/butik/$shopSlug/vara/$productId`
+- Inloggad startsida kan fortfarande ligga på `/app` (översikt); nya länkar och knappar för lager ska peka på `/app/varor...`.
+- Använd **verktyget** hellre än **admin** i synliga texter när det syftar på butikens arbetsyta.
 
 Stack: **TanStack Start** (SSR + admin UX) and **Convex** (backend + realtime database). Other integrations (OpenAI, image tooling, Swish, etc.) appear in product docs as they land.
 

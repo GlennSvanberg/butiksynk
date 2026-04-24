@@ -1,13 +1,12 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { convexQuery } from '@convex-dev/react-query'
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { api } from '../../../../convex/_generated/api'
 import type { Id } from '../../../../convex/_generated/dataModel'
-import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
-import { defaultLoginSearch } from '~/lib/loginSearch'
-import { CategoryBreadcrumb } from '~/components/CategoryBreadcrumb'
+import type { TaxonomyTreeNode } from '~/components/TaxonomyTreePicker'
 import { TaxonomyTreePicker } from '~/components/TaxonomyTreePicker'
+import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
 import { formatProductAttributeDisplay } from '~/lib/formatProductAttribute'
 
 export const Route = createFileRoute('/butik/$shopSlug/')({
@@ -30,6 +29,53 @@ const sekFormatter = new Intl.NumberFormat('sv-SE', {
   maximumFractionDigits: 0,
 })
 
+function findCategoryName(
+  nodes: Array<TaxonomyTreeNode>,
+  id: string | undefined,
+): string | undefined {
+  if (!id) return undefined
+  for (const node of nodes) {
+    if (node.id === id) return node.name
+    const child = findCategoryName(node.children, id)
+    if (child) return child
+  }
+  return undefined
+}
+
+function StorefrontCardSkeletons({
+  hasCategoryNav,
+}: {
+  hasCategoryNav: boolean
+}) {
+  return (
+    <ul
+      className={
+        hasCategoryNav
+          ? 'grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3'
+          : 'grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3 2xl:grid-cols-4'
+      }
+      aria-label="Laddar varor"
+    >
+      {Array.from({ length: 8 }).map((_, i) => (
+        <li
+          key={i}
+          className="overflow-hidden rounded-2xl border border-[color:var(--sf-primary)]/8 bg-[var(--sf-surface)] shadow-sm"
+        >
+          <div className="aspect-[4/3] animate-pulse bg-[color:var(--sf-primary)]/8" />
+          <div className="space-y-3 p-4">
+            <div className="h-4 w-3/4 rounded bg-[color:var(--sf-primary)]/10" />
+            <div className="h-3 w-1/3 rounded bg-[color:var(--sf-primary)]/8" />
+            <div className="space-y-2 pt-2">
+              <div className="h-3 rounded bg-[color:var(--sf-primary)]/7" />
+              <div className="h-3 w-5/6 rounded bg-[color:var(--sf-primary)]/7" />
+            </div>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function ProductCategoryRow({
   product,
 }: {
@@ -43,9 +89,9 @@ function ProductCategoryRow({
     : []
   if (segments.length > 0) {
     return (
-      <div className="text-[color:var(--sf-primary)]/50">
-        <CategoryBreadcrumb segments={segments} />
-      </div>
+      <p className="truncate font-mono text-[0.68rem] uppercase tracking-wide text-[color:var(--sf-primary)]/50">
+        {segments.join(' / ')}
+      </p>
     )
   }
   if (
@@ -54,16 +100,12 @@ function ProductCategoryRow({
     product.category.length > 0
   ) {
     return (
-      <p className="font-mono text-xs uppercase tracking-wide text-[color:var(--sf-primary)]/50">
+      <p className="truncate font-mono text-[0.68rem] uppercase tracking-wide text-[color:var(--sf-primary)]/50">
         {product.category}
       </p>
     )
   }
-  return (
-    <p className="font-mono text-xs uppercase tracking-wide text-[color:var(--sf-primary)]/50">
-      —
-    </p>
-  )
+  return null
 }
 
 function ButikShopHome() {
@@ -124,35 +166,39 @@ function ButikShopHome() {
   }
 
   const hasCategoryNav = categoryTree.length > 0
+  const selectedCategoryName = useMemo(
+    () => findCategoryName(categoryTree, kategori),
+    [categoryTree, kategori],
+  )
+  const trimmedQuery = q?.trim()
+  const hasActiveFilters = !!(trimmedQuery || kategori)
 
   return (
-    <main className="pb-12 pt-6 sm:pb-16 sm:pt-8">
-      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10">
-        {/* Same grid as categories + products so search aligns with the product column on desktop */}
-        <div
-          className={
-            hasCategoryNav
-              ? 'lg:grid lg:grid-cols-[minmax(0,15.5rem)_1fr] lg:items-start lg:gap-x-10 lg:gap-y-8 xl:grid-cols-[minmax(0,17rem)_1fr] xl:gap-x-12'
-              : ''
-          }
+    <main className="px-4 pb-14 pt-8 sm:px-6 sm:pb-20 sm:pt-10 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl">
+        <section
+          aria-label="Sök i sortimentet"
+          className="overflow-hidden rounded-3xl border border-[color:var(--sf-primary)]/10 bg-[var(--sf-surface)]/82 shadow-sm"
         >
-          <section
-            aria-label="Sök i sortimentet"
-            className={
-              'border-b border-[color:var(--sf-primary)]/10 bg-[var(--sf-surface)]/40 pb-10 pt-2 sm:pb-12' +
-              (hasCategoryNav
-                ? ' col-span-full lg:col-span-1 lg:col-start-2'
-                : '')
-            }
-          >
-            <div className="w-full text-center">
-              <p className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.2em] text-[color:var(--sf-primary)]/45 sm:text-xs">
+          <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,0.85fr)_minmax(26rem,1.15fr)] lg:items-end lg:p-8">
+            <div>
+              <p className="font-mono text-[0.68rem] font-medium uppercase tracking-[0.2em] text-[color:var(--sf-primary)]/45">
                 Sortiment
               </p>
+              <h2 className="mt-3 font-heading text-3xl font-bold tracking-tight text-[color:var(--sf-primary)] sm:text-4xl">
+                Upptäck varorna i butiken
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[color:var(--sf-primary)]/68 sm:text-base">
+                Bläddra bland unika plagg och objekt. Listan uppdateras när
+                butiken ändrar sitt lager.
+              </p>
+            </div>
+
+            <div>
               <form
                 id={formId}
                 onSubmit={onSearchSubmit}
-                className="mt-5 flex w-full flex-col gap-2 sm:mt-6 sm:flex-row sm:items-stretch sm:gap-0 sm:overflow-hidden sm:rounded-2xl sm:border sm:border-[color:var(--sf-primary)]/12 sm:bg-[var(--sf-surface)] sm:shadow-md"
+                className="flex w-full flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-0 sm:overflow-hidden sm:rounded-2xl sm:border sm:border-[color:var(--sf-primary)]/12 sm:bg-[var(--sf-surface)] sm:shadow-md"
               >
                 <label htmlFor={`${formId}-q`} className="sr-only">
                   Sök
@@ -162,24 +208,39 @@ function ButikShopHome() {
                   type="search"
                   value={draftQ}
                   onChange={(e) => setDraftQ(e.target.value)}
-                  placeholder="Sök titel, beskrivning, kategori …"
+                  placeholder="Sök titel, beskrivning eller kategori"
                   className="w-full min-w-0 rounded-xl border border-[color:var(--sf-primary)]/12 bg-[var(--sf-surface)] px-4 py-3.5 text-base text-[var(--sf-text)] shadow-sm outline-none ring-[color:var(--sf-accent)]/25 placeholder:text-[color:var(--sf-primary)]/40 focus:ring-2 sm:rounded-none sm:border-0 sm:py-4 sm:pl-5 sm:pr-3 sm:shadow-none sm:ring-0 sm:focus:ring-0"
                 />
                 <button
                   type="submit"
-                  className="shrink-0 rounded-xl px-6 py-3.5 text-base font-semibold text-white shadow-sm transition hover:opacity-90 sm:rounded-none sm:px-10 sm:py-4"
+                  className="shrink-0 rounded-xl px-6 py-3.5 text-base font-semibold text-white shadow-sm transition hover:opacity-90 sm:rounded-none sm:px-9 sm:py-4"
                   style={{ backgroundColor: 'var(--sf-primary)' }}
                 >
                   Sök
                 </button>
               </form>
-              <p className="mt-3 text-sm text-[color:var(--sf-primary)]/60 sm:mt-4">
-                Sök bland varor — uppdateras i realtid.
-              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[color:var(--sf-primary)]/62">
+                <span className="inline-flex items-center rounded-full border border-[color:var(--sf-primary)]/10 bg-[var(--sf-bg)] px-3 py-1">
+                  Live sortiment
+                </span>
+                {!productsPending ? (
+                  <span className="inline-flex items-center rounded-full border border-[color:var(--sf-primary)]/10 bg-[var(--sf-bg)] px-3 py-1">
+                    {products.length}{' '}
+                    {products.length === 1 ? 'vara' : 'varor'}
+                  </span>
+                ) : null}
+              </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          {/* Desktop: categories in sticky sidebar. Mobile: collapsible so products stay primary. */}
+        <div
+          className={
+            hasCategoryNav
+              ? 'mt-8 lg:grid lg:grid-cols-[minmax(0,16rem)_1fr] lg:items-start lg:gap-x-10 xl:grid-cols-[minmax(0,17.5rem)_1fr] xl:gap-x-12'
+              : 'mt-8'
+          }
+        >
           {hasCategoryNav ? (
             <>
               <aside className="hidden text-[color:var(--sf-primary)] lg:mt-0 lg:block">
@@ -191,7 +252,7 @@ function ButikShopHome() {
                     Kategorier
                   </p>
                   <TaxonomyTreePicker
-                    className="mt-3 max-h-[min(32rem,calc(100dvh-9rem))] border-[color:var(--sf-primary)]/12 bg-[var(--sf-surface)] shadow-sm"
+                    className="mt-3 max-h-[min(32rem,calc(100dvh-9rem))] rounded-2xl border-[color:var(--sf-primary)]/12 bg-[var(--sf-surface)] p-3 shadow-sm"
                     nodes={categoryTree}
                     value={kategori ?? ''}
                     onChange={(id) => setKategori(id || undefined)}
@@ -200,9 +261,16 @@ function ButikShopHome() {
                   />
                 </div>
               </aside>
-              <details className="group mb-6 mt-8 text-[color:var(--sf-primary)] lg:mt-0 lg:hidden">
+              <details className="group mb-6 text-[color:var(--sf-primary)] lg:hidden">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-[color:var(--sf-primary)]/12 bg-[var(--sf-surface)] px-4 py-3.5 text-sm font-semibold shadow-sm [&::-webkit-details-marker]:hidden">
-                  <span>Kategorier</span>
+                  <span>
+                    Kategorier
+                    {selectedCategoryName ? (
+                      <span className="ml-2 font-normal text-[color:var(--sf-primary)]/55">
+                        {selectedCategoryName}
+                      </span>
+                    ) : null}
+                  </span>
                   <span
                     aria-hidden
                     className="text-[color:var(--sf-primary)]/45 transition group-open:rotate-180"
@@ -212,7 +280,7 @@ function ButikShopHome() {
                 </summary>
                 <div className="mt-2 rounded-xl border border-[color:var(--sf-primary)]/12 bg-[var(--sf-surface)] p-1 shadow-sm">
                   <TaxonomyTreePicker
-                    className="max-h-64 border-0 bg-transparent shadow-none"
+                    className="max-h-72 border-0 bg-transparent shadow-none"
                     nodes={categoryTree}
                     value={kategori ?? ''}
                     onChange={(id) => setKategori(id || undefined)}
@@ -226,100 +294,142 @@ function ButikShopHome() {
 
           <div
             className={
-              hasCategoryNav ? 'min-w-0 lg:mt-0' : 'mt-8 min-w-0 lg:mt-10'
+              hasCategoryNav ? 'min-w-0 lg:mt-0' : 'min-w-0'
             }
           >
-            {(q?.trim() || kategori) && !productsPending ? (
-              <p className="mb-4 text-sm text-[color:var(--sf-primary)]/65">
-                {products.length}{' '}
-                {products.length === 1 ? 'träff' : 'träffar'}
-                {q?.trim() ? (
-                  <>
-                    {' '}
-                    för «{q.trim()}»
-                  </>
+            {hasActiveFilters || !productsPending ? (
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-[color:var(--sf-primary)]/65">
+                  {productsPending
+                    ? 'Hämtar sortiment …'
+                    : `${products.length} ${products.length === 1 ? 'träff' : 'träffar'}`}
+                  {trimmedQuery ? <> för “{trimmedQuery}”</> : null}
+                  {selectedCategoryName ? <> i {selectedCategoryName}</> : null}
+                </p>
+                {hasActiveFilters ? (
+                  <Link
+                    to="/butik/$shopSlug"
+                    params={{ shopSlug }}
+                    search={emptyButikListingSearch}
+                    className="rounded-full border border-[color:var(--sf-primary)]/12 bg-[var(--sf-surface)] px-3 py-1.5 text-sm font-medium text-[color:var(--sf-primary)]/78 shadow-sm transition hover:border-[color:var(--sf-primary)]/25"
+                  >
+                    Rensa filter
+                  </Link>
                 ) : null}
-              </p>
+              </div>
             ) : null}
 
             {productsPending ? (
-              <p className="text-sm text-[color:var(--sf-primary)]/70">Laddar produkter …</p>
+              <StorefrontCardSkeletons hasCategoryNav={hasCategoryNav} />
             ) : products.length === 0 ? (
               <div
-                className="rounded-xl border border-dashed border-[color:var(--sf-primary)]/20 p-10 text-center shadow-sm sm:p-12"
+                className="rounded-2xl border border-dashed border-[color:var(--sf-primary)]/20 p-8 text-center shadow-sm sm:p-12"
                 style={{ backgroundColor: 'var(--sf-surface)' }}
               >
-                <p className="text-[color:var(--sf-primary)]/80">
-                  {q?.trim() ? 'Inga träffar för din sökning.' : 'Inga produkter i butiken just nu.'}
+                <p className="font-heading text-xl font-semibold text-[color:var(--sf-primary)]">
+                  {hasActiveFilters
+                    ? 'Inga varor matchar filtret'
+                    : 'Inga varor i butiken just nu'}
                 </p>
-                <Link
-                  to="/login"
-                  search={{ ...defaultLoginSearch, redirect: '/app/snabb' }}
-                  className="mt-4 inline-block text-sm font-medium text-[color:var(--sf-accent)] underline decoration-[color:var(--sf-accent)]/30 underline-offset-4"
-                >
-                  Logga in och lägg till varor
-                </Link>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[color:var(--sf-primary)]/65">
+                  {hasActiveFilters
+                    ? 'Prova att söka bredare eller visa hela sortimentet.'
+                    : 'Kom tillbaka snart, sortimentet uppdateras när butiken publicerar nya varor.'}
+                </p>
+                {hasActiveFilters ? (
+                  <Link
+                    to="/butik/$shopSlug"
+                    params={{ shopSlug }}
+                    search={emptyButikListingSearch}
+                    className="mt-6 inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+                    style={{ backgroundColor: 'var(--sf-primary)' }}
+                  >
+                    Visa hela sortimentet
+                  </Link>
+                ) : null}
               </div>
             ) : (
-              <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-2 lg:gap-6 xl:grid-cols-3 xl:gap-7 2xl:grid-cols-4 2xl:gap-8">
+              <ul
+                className={
+                  hasCategoryNav
+                    ? 'grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3'
+                    : 'grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3 2xl:grid-cols-4'
+                }
+              >
                 {products.map((product) => (
                   <li key={product._id}>
                     <Link
                       to="/butik/$shopSlug/vara/$productId"
                       params={{ shopSlug, productId: product._id }}
                       search={emptyButikListingSearch}
-                      className="block h-full rounded-xl border border-[color:var(--sf-primary)]/10 shadow-sm transition hover:border-[color:var(--sf-primary)]/22 hover:shadow-md"
+                      className="group block h-full rounded-2xl border border-[color:var(--sf-primary)]/10 shadow-sm transition hover:-translate-y-0.5 hover:border-[color:var(--sf-primary)]/22 hover:shadow-md"
                       style={{ backgroundColor: 'var(--sf-surface)' }}
                     >
-                      <article className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl">
-                        <div className="relative aspect-square w-full shrink-0 overflow-hidden bg-[var(--sf-bg)]">
+                      <article className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl">
+                        <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-[var(--sf-bg)]">
                           {product.imageUrl ? (
                             <img
                               src={product.imageUrl}
-                              alt=""
-                              className="absolute inset-0 size-full object-cover object-center"
+                              alt={product.title}
+                              loading="lazy"
+                              decoding="async"
+                              className="absolute inset-0 size-full object-cover object-center transition duration-500 group-hover:scale-[1.025]"
                             />
                           ) : (
                             <div className="absolute inset-0 flex items-center justify-center font-mono text-sm text-[color:var(--sf-primary)]/40">
                               Ingen bild
                             </div>
                           )}
-                        </div>
-                        <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5">
-                          <div className="flex items-start justify-between gap-2">
-                            <h2 className="font-heading text-lg font-semibold leading-snug text-[color:var(--sf-primary)]">
-                              {product.title}
-                            </h2>
-                            <p className="shrink-0 font-mono text-sm font-medium tabular-nums text-[color:var(--sf-primary)]">
-                              {sekFormatter.format(product.priceSek)}
-                            </p>
+                          <div className="absolute left-3 top-3 rounded-full border border-white/35 bg-[var(--sf-surface)]/88 px-2.5 py-1 font-mono text-[0.62rem] font-medium uppercase tracking-wide text-[color:var(--sf-primary)] shadow-sm backdrop-blur-sm">
+                            Tillgänglig
                           </div>
-                          <ProductCategoryRow product={product} />
-                          <p className="line-clamp-3 text-sm leading-relaxed text-[color:var(--sf-primary)]/80">
+                        </div>
+                        <div className="flex flex-1 flex-col gap-2.5 p-4">
+                          <div className="space-y-1.5">
+                            <ProductCategoryRow product={product} />
+                            <div className="flex items-start justify-between gap-3">
+                              <h2 className="line-clamp-2 font-heading text-base font-semibold leading-snug text-[color:var(--sf-primary)]">
+                                {product.title}
+                              </h2>
+                              <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-[color:var(--sf-primary)]">
+                                {sekFormatter.format(product.priceSek)}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="line-clamp-2 text-sm leading-relaxed text-[color:var(--sf-primary)]/75">
                             {product.description}
                           </p>
                           {product.attributes.length > 0 ? (
-                            <dl className="mt-auto space-y-1 border-t border-[color:var(--sf-primary)]/8 pt-3 text-sm">
-                              {product.attributes.map((attr, i) => {
+                            <dl className="mt-auto flex flex-wrap gap-1.5 border-t border-[color:var(--sf-primary)]/8 pt-3 text-[0.68rem]">
+                              {product.attributes.slice(0, 2).map((attr, i) => {
                                 const row = formatProductAttributeDisplay(attr)
                                 return (
                                   <div
                                     key={`${product._id}-${i}`}
-                                    className="flex justify-between gap-3"
+                                    className="rounded-full border border-[color:var(--sf-primary)]/10 bg-[var(--sf-bg)] px-2 py-0.5"
                                   >
-                                    <dt className="text-[color:var(--sf-primary)]/60">
-                                      {row.label}
-                                    </dt>
-                                    <dd className="font-medium text-[color:var(--sf-primary)]">
+                                    <dt className="sr-only">{row.label}</dt>
+                                    <dd className="font-medium text-[color:var(--sf-primary)]/78">
                                       {row.value}
                                     </dd>
                                   </div>
                                 )
                               })}
+                              {product.attributes.length > 2 ? (
+                                <div className="rounded-full border border-[color:var(--sf-primary)]/10 bg-[var(--sf-bg)] px-2 py-0.5 font-medium text-[color:var(--sf-primary)]/55">
+                                  +{product.attributes.length - 2}
+                                </div>
+                              ) : null}
                             </dl>
                           ) : null}
-                          <span className="text-xs font-semibold text-[color:var(--sf-accent)]">
-                            Visa vara →
+                          <span className="pt-0.5 text-sm font-semibold text-[color:var(--sf-accent)]">
+                            Visa vara
+                            <span
+                              className="ml-1 inline-block transition group-hover:translate-x-0.5"
+                              aria-hidden
+                            >
+                              →
+                            </span>
                           </span>
                         </div>
                       </article>

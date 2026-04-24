@@ -1,7 +1,7 @@
 import * as React from 'react'
 import type { Id } from '../../convex/_generated/dataModel'
 
-const STORAGE_KEY = 'butiksynk_shop_session'
+const STORAGE_KEY = 'selio_shop_session'
 
 export type ShopSession = {
   shopId: Id<'shops'>

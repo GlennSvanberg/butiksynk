@@ -136,10 +136,6 @@ function LoginPage() {
     }
     autoNavigated.current = true
     const s = myShops[0]
-    if (!s) {
-      autoNavigated.current = false
-      return
-    }
     void finishLogin({
       shopId: s._id,
       shopName: s.name,
@@ -210,7 +206,7 @@ function LoginPage() {
     return (
       <main className="min-h-dvh bg-brand-bg bg-paper-grain text-brand-text">
         <div className="mx-auto max-w-md px-4 py-12 sm:px-6">
-          <p className="text-sm text-brand-dark/75">Öppnar admin …</p>
+          <p className="text-sm text-brand-dark/75">Öppnar verktyget …</p>
         </div>
       </main>
     )
@@ -224,7 +220,7 @@ function LoginPage() {
             Välj butik
           </p>
           <h1 className="mt-2 font-heading text-2xl font-bold text-brand-dark">
-            Fortsätt till admin
+            Fortsätt till verktyget
           </h1>
           <p className="mt-2 text-sm text-brand-dark/75">
             Du har tillgång till flera butiker. Välj vilken du vill öppna.
@@ -270,7 +266,7 @@ function LoginPage() {
               disabled={busy}
               className="rounded-lg bg-brand-dark px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90 disabled:opacity-60"
             >
-              Fortsätt till admin
+              Fortsätt till verktyget
             </button>
           </form>
           <p className="mt-8 text-center text-sm text-brand-dark/65">

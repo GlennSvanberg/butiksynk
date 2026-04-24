@@ -1,5 +1,5 @@
 {
-  "name": "butiksynk",
+  "name": "selio",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -46,6 +46,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.2.0",
     "nitro": "^3.0.260415-beta",
+    "png-to-ico": "^3.0.1",
     "prettier": "^3.8.2",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",

@@ -55,7 +55,7 @@ function AdminProductCategoryRow({
   )
 }
 
-function AdminDashboard() {
+export function AdminDashboard() {
   const { session } = useShopSession()
   const queryClient = useQueryClient()
   const confirm = useConfirm()
@@ -109,7 +109,7 @@ function AdminDashboard() {
       <div className="mb-10 flex flex-col gap-6 border-b border-brand-dark/10 pb-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="font-mono text-xs font-medium uppercase tracking-wider text-brand-dark/50">
-            Översikt
+            Varor
           </p>
           <h1 className="font-heading text-3xl font-bold tracking-tight text-brand-dark">
             {session.shopName}
@@ -121,10 +121,10 @@ function AdminDashboard() {
         </div>
         <div className="flex flex-wrap gap-3">
           <Link
-            to="/app/snabb"
+            to="/app/varor/ny"
             className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand-dark px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90"
           >
-            Lägg till produkt
+            Lägg till vara
           </Link>
           <Link
             to="/butik/$shopSlug"
@@ -145,7 +145,7 @@ function AdminDashboard() {
 
       <section className="mb-8 rounded-lg border border-brand-dark/8 bg-brand-surface px-4 py-4 shadow-sm sm:px-6">
         <p className="font-mono text-xs uppercase tracking-wide text-brand-dark/50">
-          Antal produkter
+          Antal varor
         </p>
         <p className="font-heading text-2xl font-bold tabular-nums text-brand-dark">
           {products.length}
@@ -154,16 +154,16 @@ function AdminDashboard() {
 
       <section>
         <h2 className="font-heading text-lg font-semibold text-brand-dark">
-          Dina produkter
+          Dina varor
         </h2>
         {products.length === 0 ? (
           <div className="mt-4 rounded-lg border border-dashed border-brand-dark/20 bg-brand-surface p-12 text-center shadow-sm">
-            <p className="text-brand-dark/80">Inga produkter ännu.</p>
+            <p className="text-brand-dark/80">Inga varor ännu.</p>
             <Link
-              to="/app/snabb"
+              to="/app/varor/ny"
               className="mt-4 inline-block text-sm font-medium text-brand-dark underline decoration-brand-dark/30 underline-offset-4 hover:decoration-brand-dark"
             >
-              Lägg till den första med foto
+              Lägg till första varan med foto
             </Link>
           </div>
         ) : (
@@ -195,7 +195,7 @@ function AdminDashboard() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Link
-                        to="/app/produkter/$productId/redigera"
+                        to="/app/varor/$productId/redigera"
                         params={{ productId: product._id }}
                         className="text-xs font-semibold text-brand-dark underline decoration-brand-dark/30 underline-offset-2 hover:decoration-brand-dark"
                       >

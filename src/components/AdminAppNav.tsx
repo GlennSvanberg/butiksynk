@@ -46,11 +46,11 @@ export function AdminAppNav({
 
   const navItems = (
     <>
-      <Link to="/app" className={navLinkClass} onClick={closeMobile}>
-        Översikt
+      <Link to="/app/varor" className={navLinkClass} onClick={closeMobile}>
+        Varor
       </Link>
-      <Link to="/app/snabb" className={navLinkClass} onClick={closeMobile}>
-        Snabb inläggning
+      <Link to="/app/varor/ny" className={navLinkClass} onClick={closeMobile}>
+        Ny vara
       </Link>
       <Link to="/app/butik/design" className={navLinkClass} onClick={closeMobile}>
         Butiksdesign
@@ -81,7 +81,7 @@ export function AdminAppNav({
             className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-brand-dark transition hover:bg-brand-dark/5 md:hidden"
             aria-expanded={mobileOpen}
             aria-controls="admin-mobile-nav"
-            aria-label={mobileOpen ? 'Stäng meny' : 'Öppna adminmeny'}
+            aria-label={mobileOpen ? 'Stäng meny' : 'Öppna verktygsmeny'}
             onClick={() => setMobileOpen((o) => !o)}
           >
             {mobileOpen ? (
@@ -102,14 +102,14 @@ export function AdminAppNav({
               </span>
             </Link>
             <span className="hidden font-mono text-xs text-brand-dark/50 sm:inline">
-              Admin
+              Verktyg
             </span>
           </div>
         </div>
 
         <nav
           className="hidden shrink-0 items-center gap-1 md:flex"
-          aria-label="Administration"
+          aria-label="Verktyg"
         >
           {navItems}
         </nav>
@@ -147,7 +147,7 @@ export function AdminAppNav({
           >
             <nav
               className="mx-auto flex max-w-6xl flex-col gap-1"
-              aria-label="Administration"
+              aria-label="Verktyg"
             >
               {navItems}
             </nav>

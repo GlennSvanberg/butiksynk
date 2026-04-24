@@ -5,5 +5,5 @@ export const Route = createFileRoute('/demoshop/ny')({
 })
 
 function RedirectNy() {
-  return <Navigate to="/app/snabb" replace />
+  return <Navigate to="/app/varor/ny" replace />
 }
