@@ -3,12 +3,16 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "dev": "npx --yes concurrently@9 -k \"convex dev\" \"vite dev\"",
     "build": "vite build && tsc --noEmit",
     "start": "node .output/server/index.mjs",
     "format": "prettier --write .",
-    "lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "deploy:convex": "npx convex deploy"
   },
   "dependencies": {
     "@auth/core": "^0.37.0",
@@ -40,6 +44,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.2.0",
+    "nitro": "^3.0.260415-beta",
     "prettier": "^3.8.2",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",

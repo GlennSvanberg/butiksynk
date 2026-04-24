@@ -14,7 +14,7 @@ export async function getOrCreateDefaultShopId(
     return existing._id;
   }
   return await ctx.db.insert("shops", {
-    name: "Demo",
+    name: "Exempelbutik",
     slug: DEFAULT_SHOP_SLUG,
   });
 }

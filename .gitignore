@@ -5,6 +5,7 @@ node_modules
 .env.local
 .DS_Store
 .cache
+# Vercel CLI / Nitro Vercel preset output (never commit)
 .vercel
 .output
 .nitro

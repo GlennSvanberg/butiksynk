@@ -123,59 +123,66 @@ function ButikShopHome() {
     })
   }
 
+  const hasCategoryNav = categoryTree.length > 0
+
   return (
     <main className="pb-12 pt-6 sm:pb-16 sm:pt-8">
-      {/* Hero search — centered, prominent (standard storefront pattern) */}
-      <section
-        aria-label="Sök i sortimentet"
-        className="border-b border-[color:var(--sf-primary)]/10 bg-[var(--sf-surface)]/40 px-4 pb-10 pt-2 sm:px-6 lg:px-8 xl:px-10 sm:pb-12"
-      >
-        <div className="w-full text-center">
-          <p className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.2em] text-[color:var(--sf-primary)]/45 sm:text-xs">
-            Sortiment
-          </p>
-          <form
-            id={formId}
-            onSubmit={onSearchSubmit}
-            className="mt-5 flex w-full flex-col gap-2 sm:mt-6 sm:flex-row sm:items-stretch sm:gap-0 sm:overflow-hidden sm:rounded-2xl sm:border sm:border-[color:var(--sf-primary)]/12 sm:bg-[var(--sf-surface)] sm:shadow-md"
-          >
-            <label htmlFor={`${formId}-q`} className="sr-only">
-              Sök
-            </label>
-            <input
-              id={`${formId}-q`}
-              type="search"
-              value={draftQ}
-              onChange={(e) => setDraftQ(e.target.value)}
-              placeholder="Sök titel, beskrivning, kategori …"
-              className="w-full min-w-0 rounded-xl border border-[color:var(--sf-primary)]/12 bg-[var(--sf-surface)] px-4 py-3.5 text-base text-[var(--sf-text)] shadow-sm outline-none ring-[color:var(--sf-accent)]/25 placeholder:text-[color:var(--sf-primary)]/40 focus:ring-2 sm:rounded-none sm:border-0 sm:py-4 sm:pl-5 sm:pr-3 sm:shadow-none sm:ring-0 sm:focus:ring-0"
-            />
-            <button
-              type="submit"
-              className="shrink-0 rounded-xl px-6 py-3.5 text-base font-semibold text-white shadow-sm transition hover:opacity-90 sm:rounded-none sm:px-10 sm:py-4"
-              style={{ backgroundColor: 'var(--sf-primary)' }}
-            >
-              Sök
-            </button>
-          </form>
-          <p className="mt-3 text-sm text-[color:var(--sf-primary)]/60 sm:mt-4">
-            Sök bland varor — uppdateras i realtid.
-          </p>
-        </div>
-      </section>
-
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10">
-        {/* Desktop: categories in sticky sidebar. Mobile: collapsible so products stay primary. */}
+        {/* Same grid as categories + products so search aligns with the product column on desktop */}
         <div
           className={
-            categoryTree.length > 0
-              ? 'mt-8 lg:mt-10 lg:grid lg:grid-cols-[minmax(0,15.5rem)_1fr] lg:items-start lg:gap-10 xl:grid-cols-[minmax(0,17rem)_1fr] xl:gap-12'
-              : 'mt-8 lg:mt-10'
+            hasCategoryNav
+              ? 'lg:grid lg:grid-cols-[minmax(0,15.5rem)_1fr] lg:items-start lg:gap-x-10 lg:gap-y-8 xl:grid-cols-[minmax(0,17rem)_1fr] xl:gap-x-12'
+              : ''
           }
         >
-          {categoryTree.length > 0 ? (
+          <section
+            aria-label="Sök i sortimentet"
+            className={
+              'border-b border-[color:var(--sf-primary)]/10 bg-[var(--sf-surface)]/40 pb-10 pt-2 sm:pb-12' +
+              (hasCategoryNav
+                ? ' col-span-full lg:col-span-1 lg:col-start-2'
+                : '')
+            }
+          >
+            <div className="w-full text-center">
+              <p className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.2em] text-[color:var(--sf-primary)]/45 sm:text-xs">
+                Sortiment
+              </p>
+              <form
+                id={formId}
+                onSubmit={onSearchSubmit}
+                className="mt-5 flex w-full flex-col gap-2 sm:mt-6 sm:flex-row sm:items-stretch sm:gap-0 sm:overflow-hidden sm:rounded-2xl sm:border sm:border-[color:var(--sf-primary)]/12 sm:bg-[var(--sf-surface)] sm:shadow-md"
+              >
+                <label htmlFor={`${formId}-q`} className="sr-only">
+                  Sök
+                </label>
+                <input
+                  id={`${formId}-q`}
+                  type="search"
+                  value={draftQ}
+                  onChange={(e) => setDraftQ(e.target.value)}
+                  placeholder="Sök titel, beskrivning, kategori …"
+                  className="w-full min-w-0 rounded-xl border border-[color:var(--sf-primary)]/12 bg-[var(--sf-surface)] px-4 py-3.5 text-base text-[var(--sf-text)] shadow-sm outline-none ring-[color:var(--sf-accent)]/25 placeholder:text-[color:var(--sf-primary)]/40 focus:ring-2 sm:rounded-none sm:border-0 sm:py-4 sm:pl-5 sm:pr-3 sm:shadow-none sm:ring-0 sm:focus:ring-0"
+                />
+                <button
+                  type="submit"
+                  className="shrink-0 rounded-xl px-6 py-3.5 text-base font-semibold text-white shadow-sm transition hover:opacity-90 sm:rounded-none sm:px-10 sm:py-4"
+                  style={{ backgroundColor: 'var(--sf-primary)' }}
+                >
+                  Sök
+                </button>
+              </form>
+              <p className="mt-3 text-sm text-[color:var(--sf-primary)]/60 sm:mt-4">
+                Sök bland varor — uppdateras i realtid.
+              </p>
+            </div>
+          </section>
+
+          {/* Desktop: categories in sticky sidebar. Mobile: collapsible so products stay primary. */}
+          {hasCategoryNav ? (
             <>
-              <aside className="hidden text-[color:var(--sf-primary)] lg:block">
+              <aside className="hidden text-[color:var(--sf-primary)] lg:mt-0 lg:block">
                 <div className="sticky top-24">
                   <p
                     id={`${formId}-kat`}
@@ -193,7 +200,7 @@ function ButikShopHome() {
                   />
                 </div>
               </aside>
-              <details className="group mb-6 text-[color:var(--sf-primary)] lg:hidden">
+              <details className="group mb-6 mt-8 text-[color:var(--sf-primary)] lg:mt-0 lg:hidden">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-[color:var(--sf-primary)]/12 bg-[var(--sf-surface)] px-4 py-3.5 text-sm font-semibold shadow-sm [&::-webkit-details-marker]:hidden">
                   <span>Kategorier</span>
                   <span
@@ -217,7 +224,11 @@ function ButikShopHome() {
             </>
           ) : null}
 
-          <div className="min-w-0">
+          <div
+            className={
+              hasCategoryNav ? 'min-w-0 lg:mt-0' : 'mt-8 min-w-0 lg:mt-10'
+            }
+          >
             {(q?.trim() || kategori) && !productsPending ? (
               <p className="mb-4 text-sm text-[color:var(--sf-primary)]/65">
                 {products.length}{' '}
@@ -250,7 +261,7 @@ function ButikShopHome() {
                 </Link>
               </div>
             ) : (
-              <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-6 xl:grid-cols-4 xl:gap-7 2xl:grid-cols-5 2xl:gap-8">
+              <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-2 lg:gap-6 xl:grid-cols-3 xl:gap-7 2xl:grid-cols-4 2xl:gap-8">
                 {products.map((product) => (
                   <li key={product._id}>
                     <Link

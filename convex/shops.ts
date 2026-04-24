@@ -335,7 +335,7 @@ export const generateStorefrontLogoUploadUrl = mutation({
 
 /**
  * Idempotent: skapar demosbutik om den saknas och sätter shopId på produkter utan butik.
- * Anropas från klienten vid behov (t.ex. innan demoshop) så befintliga deployment får data.
+ * Anropas från klienten vid behov (t.ex. innan exempelbutiken) så befintliga deployment får data.
  */
 export const ensureDemoShopAndBackfill = mutation({
   args: {},
@@ -350,7 +350,7 @@ export const ensureDemoShopAndBackfill = mutation({
 
     if (!demo) {
       const id = await ctx.db.insert("shops", {
-        name: "Demoshop",
+        name: "Exempelbutik",
         slug: DEMO_SHOP_SLUG,
       });
       demo = await ctx.db.get("shops", id);

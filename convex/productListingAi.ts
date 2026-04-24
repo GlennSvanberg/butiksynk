@@ -10,12 +10,14 @@ import {
   CONDITION_LABEL_SV,
   PRODUCT_ATTRIBUTE_KEYS,
 } from "../shared/attributes";
+import { productImageVerdictSchema } from "../shared/productImageQaSchema";
 import { productListingAISchema } from "../shared/productAiSchema";
+import { normalizeAiAttributes } from "./lib/normalizeAiAttributes";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import type { ProductAttribute } from "./lib/productAttributes";
 import type { ProductListingAI } from "../shared/productAiSchema";
+import type { ProductImageQaVerdict } from "../shared/productImageQaSchema";
 
 /** Vision + structured listing (svensk copy, kategori, pris). */
 const OPENAI_LISTING_MODEL = "gpt-5.4-mini";
@@ -32,10 +34,13 @@ const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models
 /** Output pixels (1:1). Matchar Nano Banana 2 / 3.1 Flash Image 1K 1024×1024; crop om modellen avviker. */
 const PRODUCT_IMAGE_SQUARE_PX = 1024;
 
+/** Första Gemini + högst en extra vid reject efter QA. */
+const MAX_GEMINI_GENERATIONS = 2;
+
 /** English prompt for Gemini image: pixels + simple webshop brief. */
 const STUDIO_PROMPT = `From the attached photo, create one professional product image for an online shop (second-hand / vintage).
 
-Show the same item, centered, on a clean white or very light gray studio background with a subtle shadow if it helps. Square 1:1 composition. Remove distracting background; keep natural colors and texture.
+Show the same item, centered, on a perfectly flat pure white (#FFFFFF) background only: no drop shadow, no contact shadow, no floor plane, no vignette, and no gray or off-white backdrop. The product should look like a clean catalog cutout on solid white. Square 1:1 composition. Remove distracting background; keep natural colors and texture on the product itself.
 
 Present the product the way it should appear on a product page: right-side up, with any visible text and logos readable (left-to-right, not upside-down or sideways unless the product itself is designed that way).
 
@@ -122,6 +127,78 @@ async function toSquarePng(buf: Buffer): Promise<Buffer> {
   return await image.getBuffer("image/png");
 }
 
+type QaRotateVerdict = "rotate_cw_90" | "rotate_ccw_90" | "rotate_180";
+
+/** Jimp: positiv deg = moturs; medurs 90° = -90. */
+async function applyQaRotationToPng(
+  squaredPng: Buffer,
+  verdict: QaRotateVerdict,
+): Promise<Buffer> {
+  const image = await Jimp.read(squaredPng);
+  const deg =
+    verdict === "rotate_cw_90"
+      ? -90
+      : verdict === "rotate_ccw_90"
+        ? 90
+        : 180;
+  image.rotate(deg);
+  return await image.getBuffer("image/png");
+}
+
+/** QA misslyckas → godkänn (undvik att blockera listning). */
+function qaFallbackApproved(): ProductImageQaVerdict {
+  return { verdict: "approved" };
+}
+
+async function runOpenAiProductImageQa(
+  openai: OpenAI,
+  pngBuffer: Buffer,
+): Promise<ProductImageQaVerdict> {
+  const dataUrl = `data:image/png;base64,${pngBuffer.toString("base64")}`;
+  try {
+    const completion = await openai.beta.chat.completions.parse({
+      model: OPENAI_LISTING_MODEL,
+      reasoning_effort: OPENAI_LISTING_REASONING_EFFORT,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You validate one square product photo for an e-commerce storefront. " +
+            "Decide if the product is shown upright for shoppers: visible titles, logos, and text should read naturally (left-to-right, right-side up), not upside-down or sideways, unless the product itself is designed that way. " +
+            "The backdrop must be pure flat white (#FFFFFF) with no cast shadows, gray studio floor, gradient, or vignette around the product—if it clearly fails that and needs a new render, use reject with a concise English regenerationHint (e.g. pure white background, no shadows). " +
+            "If the only problem is global wrong rotation in 90-degree steps, return rotate_cw_90, rotate_ccw_90, or rotate_180 instead of reject. " +
+            "Use reject only when the image must be fully regenerated from the source photo (wrong object, severe artifact, unusable blur, off-spec background as above, etc.). For reject, regenerationHint must be concise English for the image generator.",
+        },
+        {
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: dataUrl } },
+            {
+              type: "text",
+              text: "Return the structured verdict for this image only.",
+            },
+          ],
+        },
+      ],
+      response_format: zodResponseFormat(
+        productImageVerdictSchema,
+        "product_image_qa",
+      ),
+    });
+    const parsed = completion.choices[0]?.message?.parsed;
+    if (!parsed) {
+      return qaFallbackApproved();
+    }
+    const check = productImageVerdictSchema.safeParse(parsed);
+    if (!check.success) {
+      return qaFallbackApproved();
+    }
+    return check.data;
+  } catch {
+    return qaFallbackApproved();
+  }
+}
+
 function bufferFromGeminiResponse(data: unknown): Buffer | null {
   const root = data as {
     candidates?: Array<{
@@ -161,25 +238,39 @@ function bufferFromGeminiResponse(data: unknown): Buffer | null {
 async function runGeminiProductImage(
   base64: string,
   mimeType: string,
+  regenerationHint?: string,
 ): Promise<Buffer | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
     throw new Error("GEMINI_API_KEY saknas i Convex-miljön.");
   }
 
+  const parts: Array<
+    | { inlineData: { mimeType: string; data: string } }
+    | { text: string }
+  > = [
+    {
+      inlineData: {
+        mimeType: mimeType || "image/jpeg",
+        data: base64,
+      },
+    },
+    { text: STUDIO_PROMPT },
+  ];
+  const hint = regenerationHint?.trim();
+  if (hint) {
+    parts.push({
+      text:
+        "Correction from a previous attempt — apply this when generating the new image:\n" +
+        hint,
+    });
+  }
+
   const body = {
     contents: [
       {
         role: "user",
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType || "image/jpeg",
-              data: base64,
-            },
-          },
-          { text: STUDIO_PROMPT },
-        ],
+        parts,
       },
     ],
     generationConfig: {
@@ -211,60 +302,12 @@ async function runGeminiProductImage(
   return bufferFromGeminiResponse(json);
 }
 
-/** Normaliserar AI-attribut till Convex-validerad struktur */
-function normalizeAiAttributes(ai: ProductListingAI["attributes"]): Array<ProductAttribute> {
-  const out: Array<ProductAttribute> = [];
-  for (const raw of ai) {
-    if (raw.type === "enum") {
-      out.push({
-        key: "condition",
-        type: "enum",
-        enumKey: raw.enumKey,
-      });
-      continue;
-    }
-    if (raw.key === "custom" && raw.type === "custom_text") {
-      out.push({
-        key: "custom",
-        type: "text",
-        customLabelSv: raw.customLabelSv,
-        text: raw.text,
-      });
-      continue;
-    }
-    if (raw.type === "custom_number") {
-      out.push({
-        key: "custom",
-        type: "number",
-        customLabelSv: raw.customLabelSv,
-        value: raw.value,
-        ...(raw.unit != null ? { unit: raw.unit } : {}),
-      });
-      continue;
-    }
-    if (raw.type === "text") {
-      out.push({
-        key: raw.key,
-        type: "text",
-        text: raw.text,
-      });
-      continue;
-    }
-    out.push({
-      key: raw.key,
-      type: "number",
-      value: raw.value,
-      ...(raw.unit != null ? { unit: raw.unit } : {}),
-    });
-  }
-  return out;
-}
-
 async function runOpenAIListing(
   openai: OpenAI,
   base64: string,
   mimeType: string,
   taxonomySnapshot: string,
+  userContext?: string,
 ): Promise<ProductListingAI> {
   const dataUrl = `data:${mimeType};base64,${base64}`;
   const allowedKeys = PRODUCT_ATTRIBUTE_KEYS.join(", ");
@@ -309,7 +352,8 @@ async function runOpenAIListing(
           {
             type: "text",
             text:
-              "Analysera fotot och fyll i produktdata för en annons. Beskrivning ska vara säljande men ärlig om skick.",
+              "Analysera fotot och fyll i produktdata för en annons. Beskrivning ska vara säljande men ärlig om skick." +
+              (userContext ? `\n\nExtrainfo från användaren: ${userContext}` : ""),
           },
         ],
       },
@@ -383,7 +427,7 @@ export const runPipeline = internalAction({
       const openai = new OpenAI({ apiKey: openaiKey });
 
       const [listingOutcome, geminiOutcome] = await Promise.allSettled([
-        runOpenAIListing(openai, base64, visionMime, taxonomySnapshot),
+        runOpenAIListing(openai, base64, visionMime, taxonomySnapshot, meta.userContext),
         runGeminiProductImage(base64, visionMime),
       ]);
 
@@ -421,8 +465,12 @@ export const runPipeline = internalAction({
 
       const attributes = normalizeAiAttributes(revalidate.data.attributes);
 
-      const geminiBuf =
-        geminiOutcome.status === "fulfilled" ? geminiOutcome.value : null;
+      let geminiCandidate: Buffer | null =
+        geminiOutcome.status === "fulfilled" &&
+        geminiOutcome.value &&
+        geminiOutcome.value.length >= 100
+          ? geminiOutcome.value
+          : null;
 
       const baseApply = {
         productId: args.productId,
@@ -433,14 +481,57 @@ export const runPipeline = internalAction({
         attributes,
       };
 
+      /** Efter Gemini: kvadrera → QA → ev. Jimp-rotation eller Gemini om reject. */
       let pngToUpload: Buffer | null = null;
-      if (geminiBuf && geminiBuf.length >= 100) {
-        try {
-          pngToUpload = await toSquarePng(geminiBuf);
-        } catch {
-          pngToUpload = geminiBuf;
+      for (let gen = 0; gen < MAX_GEMINI_GENERATIONS; gen++) {
+        if (!geminiCandidate || geminiCandidate.length < 100) {
+          break;
         }
+        let squared: Buffer;
+        try {
+          squared = await toSquarePng(geminiCandidate);
+        } catch {
+          squared = geminiCandidate;
+        }
+        if (squared.length < 100) {
+          break;
+        }
+
+        const qa = await runOpenAiProductImageQa(openai, squared);
+
+        if (qa.verdict === "approved") {
+          pngToUpload = squared;
+          break;
+        }
+        if (
+          qa.verdict === "rotate_cw_90" ||
+          qa.verdict === "rotate_ccw_90" ||
+          qa.verdict === "rotate_180"
+        ) {
+          try {
+            pngToUpload = await applyQaRotationToPng(squared, qa.verdict);
+          } catch {
+            pngToUpload = squared;
+          }
+          break;
+        }
+        if (gen + 1 < MAX_GEMINI_GENERATIONS) {
+          try {
+            geminiCandidate = await runGeminiProductImage(
+              base64,
+              visionMime,
+              qa.regenerationHint,
+            );
+          } catch {
+            geminiCandidate = null;
+          }
+          continue;
+        }
+        geminiCandidate = null;
+        break;
       }
+
+      /** QA reject efter sista Gemini, eller ingen Gemini: samma fallback som tidigare. */
       if (!pngToUpload || pngToUpload.length < 100) {
         try {
           pngToUpload = await toSquarePng(visionBuf);

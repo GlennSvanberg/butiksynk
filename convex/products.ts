@@ -269,6 +269,36 @@ export const getProductForEdit = query({
   },
 });
 
+const QUICK_REVIEW_MAX = 25;
+
+/** Ordered snapshot for snabb “Att granska” (same index order as `productIds`). */
+export const getProductsQuickReview = query({
+  args: {
+    shopId: v.id("shops"),
+    productIds: v.array(v.id("products")),
+  },
+  handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
+    const ids = args.productIds.slice(0, QUICK_REVIEW_MAX);
+    return Promise.all(
+      ids.map(async (productId) => {
+        const doc = await ctx.db.get("products", productId);
+        if (!doc || !isActiveProduct(doc) || doc.shopId !== args.shopId) {
+          return null;
+        }
+        const imageUrl = await ctx.storage.getUrl(doc.imageStorageId);
+        return {
+          productId,
+          imageUrl,
+          captureStatus: doc.captureStatus,
+          captureError: doc.captureError,
+          title: doc.title,
+        };
+      }),
+    );
+  },
+});
+
 export const updateProduct = mutation({
   args: {
     productId: v.id("products"),
@@ -426,6 +456,7 @@ export const createProductFromPhotoCapture = mutation({
   args: {
     rawImageStorageId: v.id("_storage"),
     shopId: v.optional(v.id("shops")),
+    userContext: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const shopId = await resolveShopIdForWrite(ctx, args.shopId);
@@ -437,6 +468,7 @@ export const createProductFromPhotoCapture = mutation({
       attributes: [],
       imageStorageId: args.rawImageStorageId,
       sourceImageStorageId: args.rawImageStorageId,
+      userContext: args.userContext,
       captureStatus: "processing",
     });
 
@@ -472,7 +504,7 @@ export const getProductForPipeline = internalQuery({
             .unique()
         )?._id ?? null;
     }
-    return { rawImageUrl, shopId };
+    return { rawImageUrl, shopId, userContext: doc.userContext };
   },
 });
 

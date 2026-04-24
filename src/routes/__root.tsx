@@ -21,12 +21,12 @@ export const Route = createRootRouteWithContext<{
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'Butiksynk — PIM för vintage & second hand',
+        title: 'Selio — Från inlämning till kundbutik',
       },
       {
         name: 'description',
         content:
-          'Digital tvilling av butikslager med AI-listning och realtidssynk för svenska vintage- och second hand-butiker.',
+          'Selio håller inlämning, lager och kundbutik i synk för vintage och second hand, med AI-stöd för titel, pris och text.',
       },
     ],
     links: [

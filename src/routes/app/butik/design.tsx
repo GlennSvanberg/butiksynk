@@ -294,7 +294,7 @@ function ButiksdesignPage() {
             Färger
           </h2>
           <p className="text-sm text-brand-dark/70">
-            Hex i formatet #RRGGBB. Lämna tomt för standard (Butiksynk-palett).
+            Hex i formatet #RRGGBB. Lämna tomt för standard (Selio-palett).
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             {(

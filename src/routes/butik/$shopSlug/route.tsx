@@ -1,9 +1,14 @@
-import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useAuthActions } from '@convex-dev/auth/react'
 import { convexQuery } from '@convex-dev/react-query'
-import { api } from '../../../../convex/_generated/api'
+import { useQuery } from '@tanstack/react-query'
+import { Link, Outlet, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useConvexAuth } from 'convex/react'
 import type { CSSProperties } from 'react'
+import * as React from 'react'
+import { api } from '../../../../convex/_generated/api'
+import { AdminAppNav } from '~/components/AdminAppNav'
 import { defaultLoginSearch } from '~/lib/loginSearch'
+import { useShopSession } from '~/lib/shopSession'
 
 export const Route = createFileRoute('/butik/$shopSlug')({
   component: ButikStorefrontLayout,
@@ -17,9 +22,55 @@ const defaultText = '#1a1a1a'
 
 function ButikStorefrontLayout() {
   const { shopSlug } = Route.useParams()
+  const navigate = useNavigate()
+  const { session, setSession } = useShopSession()
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth()
+  const { signOut } = useAuthActions()
+
   const { data: branding, isPending } = useQuery(
     convexQuery(api.shops.getStorefrontBrandingBySlug, { slug: shopSlug }),
   )
+
+  const { data: myShops, isPending: myShopsPending } = useQuery({
+    ...convexQuery(api.shops.listMyShops, {}),
+    enabled: isAuthenticated,
+  })
+
+  const myShopForSlug = React.useMemo(
+    () => myShops?.find((s) => s.slug === shopSlug),
+    [myShops, shopSlug],
+  )
+
+  React.useEffect(() => {
+    if (!myShopForSlug) {
+      return
+    }
+    if (!session || session.shopId !== myShopForSlug._id) {
+      setSession({
+        shopId: myShopForSlug._id,
+        shopName: myShopForSlug.name,
+        shopSlug: myShopForSlug.slug,
+      })
+    }
+  }, [myShopForSlug, session, setSession])
+
+  const showOwnerAdminNav =
+    isAuthenticated &&
+    !authLoading &&
+    !myShopsPending &&
+    !!myShopForSlug
+
+  const onLogout = () => {
+    void signOut().finally(() => {
+      setSession(null)
+      void navigate({ to: '/login', search: defaultLoginSearch })
+    })
+  }
+
+  const adminNavShopName =
+    session?.shopSlug === shopSlug
+      ? session.shopName
+      : (myShopForSlug?.name ?? branding?.displayName ?? null)
 
   if (isPending) {
     return (
@@ -66,7 +117,15 @@ function ButikStorefrontLayout() {
       className="min-h-dvh bg-paper-grain font-sans text-[var(--sf-text)]"
       style={{ ...style, backgroundColor: 'var(--sf-bg)' }}
     >
-      <header className="border-b border-[color:var(--sf-primary)]/15 bg-[var(--sf-bg)]/95 backdrop-blur-md">
+      {showOwnerAdminNav ? (
+        <AdminAppNav
+          variant="storefront"
+          shopSlug={shopSlug}
+          shopName={adminNavShopName}
+          onLogout={onLogout}
+        />
+      ) : null}
+      <header className="relative z-10 border-b border-[color:var(--sf-primary)]/15 bg-[var(--sf-bg)]/95 backdrop-blur-md">
         <div className="flex w-full flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8 xl:px-10">
           <div className="flex min-w-0 items-center gap-3">
             {branding.logoUrl ? (
@@ -86,14 +145,16 @@ function ButikStorefrontLayout() {
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Link
-              to="/login"
-              search={{ ...defaultLoginSearch, redirect: '/app/snabb' }}
-              className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
-              style={{ backgroundColor: 'var(--sf-primary)' }}
-            >
-              Sälj via Butiksynk
-            </Link>
+            {!showOwnerAdminNav ? (
+              <Link
+                to="/login"
+                search={{ ...defaultLoginSearch, redirect: '/app/snabb' }}
+                className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+                style={{ backgroundColor: 'var(--sf-primary)' }}
+              >
+                Sälj via Selio
+              </Link>
+            ) : null}
             <Link
               to="/"
               className="rounded-lg px-3 py-2 text-sm font-medium text-[color:var(--sf-primary)]/80 transition hover:bg-[color:var(--sf-primary)]/5"

@@ -60,6 +60,8 @@ export default defineSchema({
     imageStorageId: v.id("_storage"),
     /** Original butiksfoto; samma som imageStorageId tills Nano Banana 2 ersätter visningsbilden. */
     sourceImageStorageId: v.optional(v.id("_storage")),
+    /** Fritext från användaren vid inskanning (skick, detaljer, defekter) */
+    userContext: v.optional(v.string()),
     captureStatus: v.optional(
       v.union(
         v.literal("processing"),
