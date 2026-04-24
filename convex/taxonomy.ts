@@ -15,10 +15,6 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 
 const ROOT_NAME = "Sortiment";
 const ROOT_SLUG = "sortiment";
-const IMPORT_NAME = "Importerade";
-const IMPORT_SLUG = "importerade";
-const FALLBACK_NAME = "Övrigt";
-const FALLBACK_SLUG = "ovrigt";
 
 const categoryResolutionValidator = v.union(
   v.object({
@@ -228,8 +224,8 @@ export function buildTaxonomyTree(
 export async function ensureRootStructure(
   ctx: MutationCtx,
   shopId: Id<"shops">,
-): Promise<{ rootId: Id<"taxonomyNodes">; importId: Id<"taxonomyNodes"> }> {
-  let roots = await listChildren(ctx, shopId, null);
+): Promise<{ rootId: Id<"taxonomyNodes"> }> {
+  const roots = await listChildren(ctx, shopId, null);
   let root = roots.find((r) => r.slug === ROOT_SLUG);
   if (!root) {
     const rootId = await ctx.db.insert("taxonomyNodes", {
@@ -240,53 +236,48 @@ export async function ensureRootStructure(
       sortOrder: 0,
     });
     root = (await ctx.db.get("taxonomyNodes", rootId))!;
-    roots = await listChildren(ctx, shopId, null);
   }
 
-  let importNode = (
-    await listChildren(ctx, shopId, root._id)
-  ).find((c) => c.slug === IMPORT_SLUG);
-  if (!importNode) {
-    const importId = await ctx.db.insert("taxonomyNodes", {
-      shopId,
-      parentId: root._id,
-      name: IMPORT_NAME,
-      slug: await uniqueSlugForParent(ctx, shopId, root._id, IMPORT_SLUG),
-      sortOrder: 1,
-    });
-    importNode = (await ctx.db.get("taxonomyNodes", importId))!;
-  }
-
-  return { rootId: root._id, importId: importNode._id };
+  return { rootId: root._id };
 }
 
-async function getOrCreateFallbackLeaf(
+const AUTO_LEAF_MAX_LEN = 72;
+
+function autoLeafNameFromListingTitle(title: string): string {
+  const t = title.trim();
+  if (!t) {
+    return "Ny kategori";
+  }
+  return t.length <= AUTO_LEAF_MAX_LEN ? t : `${t.slice(0, AUTO_LEAF_MAX_LEN - 1)}…`;
+}
+
+async function createAutoLeafUnderSortiment(
   ctx: MutationCtx,
   shopId: Id<"shops">,
+  listingTitleSv: string,
 ): Promise<Id<"taxonomyNodes">> {
-  const { importId } = await ensureRootStructure(ctx, shopId);
-  const children = await listChildren(ctx, shopId, importId);
-  const existing = children.find((c) => c.slug === FALLBACK_SLUG);
-  if (existing) {
-    return existing._id;
-  }
+  const { rootId } = await ensureRootStructure(ctx, shopId);
+  const name = autoLeafNameFromListingTitle(listingTitleSv);
+  const baseSlug = slugifyTaxonomySegment(name);
+  const slug = await uniqueSlugForParent(ctx, shopId, rootId, baseSlug);
   return ctx.db.insert("taxonomyNodes", {
     shopId,
-    parentId: importId,
-    name: FALLBACK_NAME,
-    slug: await uniqueSlugForParent(ctx, shopId, importId, FALLBACK_SLUG),
-    sortOrder: 0,
+    parentId: rootId,
+    name,
+    slug,
+    sortOrder: Date.now(),
   });
 }
 
-export async function findOrCreateLeafUnderImport(
+/** Legacy: skapar blad direkt under Sortiment (ersätter tidigare \"Importerade\"-gren). */
+export async function findOrCreateLeafUnderSortiment(
   ctx: MutationCtx,
   shopId: Id<"shops">,
   categoryLabel: string,
 ): Promise<Id<"taxonomyNodes">> {
-  const { importId } = await ensureRootStructure(ctx, shopId);
-  const name = categoryLabel.trim() || FALLBACK_NAME;
-  const children = await listChildren(ctx, shopId, importId);
+  const { rootId } = await ensureRootStructure(ctx, shopId);
+  const name = categoryLabel.trim() || autoLeafNameFromListingTitle("");
+  const children = await listChildren(ctx, shopId, rootId);
   const lower = name.toLowerCase();
   const existing =
     children.find((c) => c.name.trim().toLowerCase() === lower) ??
@@ -295,10 +286,10 @@ export async function findOrCreateLeafUnderImport(
     return existing._id;
   }
   const baseSlug = slugifyTaxonomySegment(name);
-  const slug = await uniqueSlugForParent(ctx, shopId, importId, baseSlug);
+  const slug = await uniqueSlugForParent(ctx, shopId, rootId, baseSlug);
   return ctx.db.insert("taxonomyNodes", {
     shopId,
-    parentId: importId,
+    parentId: rootId,
     name,
     slug,
     sortOrder: Date.now(),
@@ -335,6 +326,8 @@ export const getTaxonomySnapshotForAi = internalQuery({
 export const resolveCategoryProposal = internalMutation({
   args: {
     shopId: v.id("shops"),
+    /** Används när befintlig path saknas — skapar ny bladnod under Sortiment. */
+    listingTitleSv: v.string(),
     categoryResolution: categoryResolutionValidator,
   },
   handler: async (ctx, args) => {
@@ -343,15 +336,23 @@ export const resolveCategoryProposal = internalMutation({
     if (args.categoryResolution.mode === "existing") {
       const segments = args.categoryResolution.path.map((s) => s.trim()).filter(Boolean);
       if (segments.length === 0) {
-        const fallback = await getOrCreateFallbackLeaf(ctx, args.shopId);
-        return { categoryId: fallback };
+        const id = await createAutoLeafUnderSortiment(
+          ctx,
+          args.shopId,
+          args.listingTitleSv,
+        );
+        return { categoryId: id };
       }
       const id = await walkExistingPath(ctx, args.shopId, segments);
       if (id) {
         return { categoryId: id };
       }
-      const fallback = await getOrCreateFallbackLeaf(ctx, args.shopId);
-      return { categoryId: fallback };
+      const autoId = await createAutoLeafUnderSortiment(
+        ctx,
+        args.shopId,
+        args.listingTitleSv,
+      );
+      return { categoryId: autoId };
     }
 
     const parentSegments = args.categoryResolution.parentPath
@@ -369,7 +370,9 @@ export const resolveCategoryProposal = internalMutation({
 
     const resolvedParentId: Id<"taxonomyNodes"> = parentId;
 
-    const name = args.categoryResolution.suggestedNameSv.trim() || FALLBACK_NAME;
+    const name =
+      args.categoryResolution.suggestedNameSv.trim() ||
+      autoLeafNameFromListingTitle(args.listingTitleSv);
     const baseSlug = slugifyTaxonomySegment(name);
     const slug = await uniqueSlugForParent(
       ctx,
@@ -505,8 +508,8 @@ export const ensureDemoEnvironment = mutation({
         const label =
           legacyCategory && legacyCategory !== "—"
             ? legacyCategory
-            : FALLBACK_NAME;
-        const leafId = await findOrCreateLeafUnderImport(ctx, shopId, label);
+            : "Ny kategori";
+        const leafId = await findOrCreateLeafUnderSortiment(ctx, shopId, label);
         patch.categoryId = leafId;
       }
 

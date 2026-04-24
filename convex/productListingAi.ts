@@ -3,6 +3,7 @@
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { Jimp } from "jimp";
+import exifParser from "exif-parser";
 import { v } from "convex/values";
 import {
   COMMON_UNITS,
@@ -16,18 +17,101 @@ import type { Id } from "./_generated/dataModel";
 import type { ProductAttribute } from "./lib/productAttributes";
 import type { ProductListingAI } from "../shared/productAiSchema";
 
+/** Vision + structured listing (svensk copy, kategori, pris). */
+const OPENAI_LISTING_MODEL = "gpt-5.4-mini";
+const OPENAI_LISTING_REASONING_EFFORT = "low" as const;
+
+/**
+ * Google marknadsför Gemini native image som "Nano Banana". Nano Banana 2 =
+ * `gemini-3.1-flash-image-preview` (snabb/hög volym; motsvarar Pro-linjen "Nano Banana Pro").
+ * @see https://ai.google.dev/gemini-api/docs/image-generation
+ */
 const GEMINI_MODEL = "gemini-3.1-flash-image-preview";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
-/** Output pixels (1:1). Gemini may still return non-square; crop to square PNG before storage. */
+/** Output pixels (1:1). Matchar Nano Banana 2 / 3.1 Flash Image 1K 1024×1024; crop om modellen avviker. */
 const PRODUCT_IMAGE_SQUARE_PX = 1024;
 
-const STUDIO_PROMPT = `Du är en e-handelsfotograf. Gör om denna bild till ett proffsigt produktfoto för en second hand- eller vintagebutik:
-- Bildformat: strikt kvadratisk (1:1 bildförhållande), t.ex. varan centrerad i en kvadratisk komposition.
-- Neutral bakgrund: ren vit eller mycket ljusgrå studio, mjuk skugga under varan om det passar.
-- Centrera varan, behåll äkta färger och texturer (inga överdrivna filter).
-- Ta bort stökig butiksmiljö; fokus enbart på varan.
-Svara med en ny bild (image output) enligt modellens image modality.`;
+/** English prompt for Gemini image: pixels + simple webshop brief. */
+const STUDIO_PROMPT = `From the attached photo, create one professional product image for an online shop (second-hand / vintage).
+
+Show the same item, centered, on a clean white or very light gray studio background with a subtle shadow if it helps. Square 1:1 composition. Remove distracting background; keep natural colors and texture.
+
+Present the product the way it should appear on a product page: right-side up, with any visible text and logos readable (left-to-right, not upside-down or sideways unless the product itself is designed that way).
+
+Return only the final image.`;
+
+function isJpegBuffer(buf: Buffer): boolean {
+  return buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xd8;
+}
+
+function readExifOrientation(buf: Buffer): number {
+  if (!isJpegBuffer(buf)) {
+    return 1;
+  }
+  try {
+    const result = exifParser.create(buf).parse();
+    const o = result.tags?.Orientation;
+    if (typeof o === "number" && o >= 1 && o <= 8) {
+      return o;
+    }
+  } catch {
+    // ignore
+  }
+  return 1;
+}
+
+/** Jimp roterar moturs (multipel av 90°). EXIF anger hur lagrade pixlar ska vändas för korrekt vy. */
+function applyExifOrientationToJimp(
+  image: Awaited<ReturnType<typeof Jimp.read>>,
+  orientation: number,
+): void {
+  switch (orientation) {
+    case 1:
+      return;
+    case 2:
+      image.flip({ horizontal: true });
+      return;
+    case 3:
+      image.rotate(180);
+      return;
+    case 4:
+      image.flip({ vertical: true });
+      return;
+    case 5:
+      image.rotate(270);
+      image.flip({ horizontal: true });
+      return;
+    case 6:
+      image.rotate(270);
+      return;
+    case 7:
+      image.rotate(90);
+      image.flip({ horizontal: true });
+      return;
+    case 8:
+      image.rotate(90);
+      return;
+    default:
+      return;
+  }
+}
+
+/** Rätar JPEG enligt EXIF Orientation och kodar om till JPEG så vision-modeller får rätt pixlar. */
+async function normalizeImageForVision(
+  buf: Buffer,
+  mimeType: string,
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  try {
+    const orientation = readExifOrientation(buf);
+    const image = await Jimp.read(buf);
+    applyExifOrientationToJimp(image, orientation);
+    const jpegBytes = await image.getBuffer("image/jpeg", { quality: 92 });
+    return { buffer: Buffer.from(jpegBytes), mimeType: "image/jpeg" };
+  } catch {
+    return { buffer: buf, mimeType };
+  }
+}
 
 async function toSquarePng(buf: Buffer): Promise<Buffer> {
   const image = await Jimp.read(buf);
@@ -48,11 +132,16 @@ function bufferFromGeminiResponse(data: unknown): Buffer | null {
   if (!Array.isArray(parts)) {
     return null;
   }
+  let lastImage: Buffer | null = null;
   for (const part of parts) {
     if (!part || typeof part !== "object") {
       continue;
     }
     const p = part as Record<string, unknown>;
+    /** Thinking-steg kan innehålla interim-bilder; använd endast slutlig output (Gemini 3 image docs). */
+    if (p.thought === true) {
+      continue;
+    }
     const inline =
       (p.inlineData as Record<string, unknown> | undefined) ??
       (p.inline_data as Record<string, unknown> | undefined);
@@ -63,10 +152,10 @@ function bufferFromGeminiResponse(data: unknown): Buffer | null {
       (inline.data as string | undefined) ??
       (inline.data_base64 as string | undefined);
     if (typeof dataB64 === "string" && dataB64.length > 0) {
-      return Buffer.from(dataB64, "base64");
+      lastImage = Buffer.from(dataB64, "base64");
     }
   }
-  return null;
+  return lastImage;
 }
 
 async function runGeminiProductImage(
@@ -95,6 +184,14 @@ async function runGeminiProductImage(
     ],
     generationConfig: {
       responseModalities: ["TEXT", "IMAGE"],
+      imageConfig: {
+        aspectRatio: "1:1",
+        imageSize: "1K",
+      },
+      thinkingConfig: {
+        thinkingLevel: "minimal",
+        includeThoughts: false,
+      },
     },
   };
 
@@ -141,7 +238,7 @@ function normalizeAiAttributes(ai: ProductListingAI["attributes"]): Array<Produc
         type: "number",
         customLabelSv: raw.customLabelSv,
         value: raw.value,
-        unit: raw.unit,
+        ...(raw.unit != null ? { unit: raw.unit } : {}),
       });
       continue;
     }
@@ -157,7 +254,7 @@ function normalizeAiAttributes(ai: ProductListingAI["attributes"]): Array<Produc
       key: raw.key,
       type: "number",
       value: raw.value,
-      unit: raw.unit,
+      ...(raw.unit != null ? { unit: raw.unit } : {}),
     });
   }
   return out;
@@ -182,7 +279,8 @@ async function runOpenAIListing(
       : "\n(Inget kategoriträd finns än — använd new_leaf under tomt föräldravärde eller existing med path [\"Sortiment\"] efter seed.)\n";
 
   const completion = await openai.beta.chat.completions.parse({
-    model: "gpt-4o-mini",
+    model: OPENAI_LISTING_MODEL,
+    reasoning_effort: OPENAI_LISTING_REASONING_EFFORT,
     messages: [
       {
         role: "system",
@@ -190,8 +288,11 @@ async function runOpenAIListing(
           "Du hjälper svenska vintage- och second hand-butiker. Alla texter ska vara på svenska. " +
           "Priset priceSek är ett heltal i svenska kronor, rimligt för begagnat. " +
           "Kategori: ange categoryResolution.mode existing med path-array som matchar ett befintligt spår ordagrant, " +
-          "eller mode new_leaf med parentPath och suggestedNameSv om ingen nod passar. " +
-          "Undvik överlapp — välj mest specifika befintliga bladnod om möjligt." +
+          "eller mode new_leaf med parentPath (oftast [\"Sortiment\"]) och suggestedNameSv om ingen nod passar. " +
+          "Välj aldrig generiska fångstkategorier som \"Övrigt\", \"Diverse\" eller liknande — skapa i stället new_leaf med ett beskrivande svenskt namn " +
+          "(t.ex. produkttyp: \"Brädspel\", \"Pussel\", \"Barnböcker\"). " +
+          "Använd inte kategorier som \"Importerade\" (är föråldrade) — välj sortimentsgren eller new_leaf. " +
+          "Undvik överlapp — välj mest specifika befintliga bladnod om den verkligen stämmer." +
           taxonomyBlock +
           `\nTillåtna attributnycklar (key): ${allowedKeys}. Skick (condition) ska som enumKey vara ett av: ${conditionHints}. ` +
           `Numeriska attribut använder type "number", value är tal, och unit är valfri (${units}). ` +
@@ -271,17 +372,19 @@ export const runPipeline = internalAction({
       }
 
       const arrayBuf = await imageRes.arrayBuffer();
-      const buf = Buffer.from(arrayBuf);
-      const base64 = buf.toString("base64");
-      const mimeType =
+      const rawBuf = Buffer.from(arrayBuf);
+      const headerMime =
         imageRes.headers.get("content-type")?.split(";")[0]?.trim() ||
         "image/jpeg";
+      const { buffer: visionBuf, mimeType: visionMime } =
+        await normalizeImageForVision(rawBuf, headerMime);
+      const base64 = visionBuf.toString("base64");
 
       const openai = new OpenAI({ apiKey: openaiKey });
 
       const [listingOutcome, geminiOutcome] = await Promise.allSettled([
-        runOpenAIListing(openai, base64, mimeType, taxonomySnapshot),
-        runGeminiProductImage(base64, mimeType),
+        runOpenAIListing(openai, base64, visionMime, taxonomySnapshot),
+        runGeminiProductImage(base64, visionMime),
       ]);
 
       if (listingOutcome.status === "rejected") {
@@ -311,6 +414,7 @@ export const runPipeline = internalAction({
         internal.taxonomy.resolveCategoryProposal,
         {
           shopId: meta.shopId,
+          listingTitleSv: revalidate.data.title,
           categoryResolution: revalidate.data.categoryResolution,
         },
       );
@@ -329,16 +433,25 @@ export const runPipeline = internalAction({
         attributes,
       };
 
-      if (!geminiBuf || geminiBuf.length < 100) {
-        await ctx.runMutation(internal.products.applyAiListingResult, baseApply);
-        return;
+      let pngToUpload: Buffer | null = null;
+      if (geminiBuf && geminiBuf.length >= 100) {
+        try {
+          pngToUpload = await toSquarePng(geminiBuf);
+        } catch {
+          pngToUpload = geminiBuf;
+        }
+      }
+      if (!pngToUpload || pngToUpload.length < 100) {
+        try {
+          pngToUpload = await toSquarePng(visionBuf);
+        } catch {
+          pngToUpload = null;
+        }
       }
 
-      let pngToUpload: Buffer;
-      try {
-        pngToUpload = await toSquarePng(geminiBuf);
-      } catch {
-        pngToUpload = geminiBuf;
+      if (!pngToUpload || pngToUpload.length < 100) {
+        await ctx.runMutation(internal.products.applyAiListingResult, baseApply);
+        return;
       }
 
       const postUrl: string = await ctx.runMutation(

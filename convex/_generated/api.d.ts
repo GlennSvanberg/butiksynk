@@ -19,6 +19,7 @@ import type * as lib_shopBranding from "../lib/shopBranding.js";
 import type * as lib_shops from "../lib/shops.js";
 import type * as lib_slugify from "../lib/slugify.js";
 import type * as myFunctions from "../myFunctions.js";
+import type * as productImageRotate from "../productImageRotate.js";
 import type * as productListingAi from "../productListingAi.js";
 import type * as products from "../products.js";
 import type * as shops from "../shops.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   "lib/shops": typeof lib_shops;
   "lib/slugify": typeof lib_slugify;
   myFunctions: typeof myFunctions;
+  productImageRotate: typeof productImageRotate;
   productListingAi: typeof productListingAi;
   products: typeof products;
   shops: typeof shops;

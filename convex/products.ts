@@ -350,6 +350,46 @@ export const purgeOldSoftDeleted = internalMutation({
   },
 });
 
+/**
+ * Byter visningsbild till en redan uppladdad fil (t.ex. efter rotation i action).
+ * Tar bort gamla visningsfilen om den skiljer sig från källan.
+ */
+export const applyRotatedProductImage = mutation({
+  args: {
+    productId: v.id("products"),
+    shopId: v.id("shops"),
+    newImageStorageId: v.id("_storage"),
+  },
+  handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
+    const doc = await requireActiveProductForShop(
+      ctx,
+      args.productId,
+      args.shopId,
+    );
+    if (doc.captureStatus === "processing") {
+      throw new Error("Vänta tills AI listan är klar innan du roterar bilden.");
+    }
+    const oldId = doc.imageStorageId;
+    if (oldId === args.newImageStorageId) {
+      return;
+    }
+    const patch: {
+      imageStorageId: Id<"_storage">;
+      sourceImageStorageId?: Id<"_storage">;
+    } = { imageStorageId: args.newImageStorageId };
+    if (doc.sourceImageStorageId === oldId) {
+      patch.sourceImageStorageId = args.newImageStorageId;
+    }
+    await ctx.db.patch("products", args.productId, patch);
+    try {
+      await ctx.storage.delete(oldId);
+    } catch {
+      /* redan borta eller ogiltig */
+    }
+  },
+});
+
 export const generateUploadUrl = mutation({
   args: { shopId: v.id("shops") },
   handler: async (ctx, args) => {

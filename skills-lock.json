@@ -30,6 +30,11 @@
       "source": "get-convex/agent-skills",
       "sourceType": "github",
       "computedHash": "36d7a5c86a60a2eb75a5590e16ac5a92a93dc010681ad8c7dbc9d456dc426895"
+    },
+    "nano-banana-pro": {
+      "source": "intellectronica/agent-skills",
+      "sourceType": "github",
+      "computedHash": "0bdf4363e3cf1c1330d2bb16327709900ea9c30d6e4014bc6ad3bca6820ac269"
     }
   }
 }

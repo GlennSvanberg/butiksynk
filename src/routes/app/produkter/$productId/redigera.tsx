@@ -1,5 +1,5 @@
 import { Link, Navigate, createFileRoute, useRouter } from '@tanstack/react-router'
-import { useMutation, useQuery } from 'convex/react'
+import { useAction, useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { api } from '../../../../../convex/_generated/api'
 import type { Id } from '../../../../../convex/_generated/dataModel'
@@ -33,6 +33,9 @@ function RedigeraProdukt() {
   const updateProduct = useMutation(api.products.updateProduct)
   const generateUploadUrl = useMutation(api.products.generateUploadUrl)
   const ensureTaxonomy = useMutation(api.taxonomy.ensureTaxonomyForShop)
+  const rotateProductDisplayImage = useAction(
+    api.productImageRotate.rotateProductDisplayImage,
+  )
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -42,6 +45,7 @@ function RedigeraProdukt() {
   const [saving, setSaving] = useState(false)
   const [newImageId, setNewImageId] = useState<Id<'_storage'> | null>(null)
   const [uploadBusy, setUploadBusy] = useState(false)
+  const [rotateBusy, setRotateBusy] = useState(false)
   const formSyncedId = useRef<string | null>(null)
 
   useEffect(() => {
@@ -127,6 +131,27 @@ function RedigeraProdukt() {
       router,
     ],
   )
+
+  const onRotate = async (direction: 'cw' | 'ccw' | '180') => {
+    if (!session || !getProduct || getProduct.captureStatus === 'processing') {
+      return
+    }
+    setError(null)
+    setRotateBusy(true)
+    try {
+      await rotateProductDisplayImage({
+        productId,
+        shopId: session.shopId,
+        direction,
+      })
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : 'Rotation misslyckades.',
+      )
+    } finally {
+      setRotateBusy(false)
+    }
+  }
 
   const onFile = async (file: File | undefined) => {
     if (!session || !file || !file.type.startsWith('image/')) {
@@ -311,6 +336,64 @@ function RedigeraProdukt() {
             </ul>
           </div>
         )}
+
+        <div className="border-t border-brand-dark/8 pt-4">
+          <p className="text-sm font-medium text-brand-dark">Huvudbild</p>
+          {getProduct.imageUrl ? (
+            <div className="mt-2 space-y-2">
+              <img
+                src={getProduct.imageUrl}
+                alt=""
+                className="max-h-56 w-auto max-w-full rounded-lg border border-brand-dark/10 object-contain"
+              />
+              <p className="text-xs text-brand-dark/60">
+                EXIF styr bara kamerans rotation — om bilden är tagen med lådan
+                upp och ner behöver du vända här.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-brand-dark/20 bg-brand-dark px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark/90 disabled:opacity-50"
+                  disabled={
+                    getProduct.captureStatus === 'processing' ||
+                    saving ||
+                    rotateBusy
+                  }
+                  onClick={() => void onRotate('180')}
+                >
+                  Vänd 180° (upp/ned)
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-brand-dark/20 bg-white px-3 py-1.5 text-sm font-medium text-brand-dark transition hover:bg-brand-dark/5 disabled:opacity-50"
+                  disabled={
+                    getProduct.captureStatus === 'processing' ||
+                    saving ||
+                    rotateBusy
+                  }
+                  onClick={() => void onRotate('cw')}
+                >
+                  Rotera 90° medurs
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-brand-dark/20 bg-white px-3 py-1.5 text-sm font-medium text-brand-dark transition hover:bg-brand-dark/5 disabled:opacity-50"
+                  disabled={
+                    getProduct.captureStatus === 'processing' ||
+                    saving ||
+                    rotateBusy
+                  }
+                  onClick={() => void onRotate('ccw')}
+                >
+                  Rotera 90° moturs
+                </button>
+              </div>
+              {rotateBusy ? (
+                <p className="text-xs text-brand-dark/60">Sparar roterad bild …</p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
 
         <div className="border-t border-brand-dark/8 pt-4">
           <label

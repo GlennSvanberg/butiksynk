@@ -35,7 +35,8 @@ export const productAttributeAISchema = z.union([
     key: numberKeyEnum,
     type: z.literal("number"),
     value: z.number(),
-    unit: unitEnum.optional(),
+    /** Required key for OpenAI structured outputs; use null when no unit. */
+    unit: unitEnum.nullable(),
   }),
   z.object({
     key: z.literal("condition"),
@@ -53,7 +54,8 @@ export const productAttributeAISchema = z.union([
     type: z.literal("custom_number"),
     customLabelSv: z.string().min(1).max(120),
     value: z.number(),
-    unit: unitEnum.optional(),
+    /** Required key for OpenAI structured outputs; use null when no unit. */
+    unit: unitEnum.nullable(),
   }),
 ]);
 
