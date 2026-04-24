@@ -5,6 +5,7 @@ import { convexQuery } from '@convex-dev/react-query'
 import * as React from 'react'
 import { api } from '../../../../convex/_generated/api'
 import type { Id } from '../../../../convex/_generated/dataModel'
+import { StorefrontDesignPreview } from '~/components/StorefrontDesignPreview'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
 import { useShopSession } from '~/lib/shopSession'
 
@@ -195,7 +196,7 @@ function ButiksdesignPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <div className="mb-8 border-b border-brand-dark/10 pb-6">
         <p className="font-mono text-xs font-medium uppercase tracking-wider text-brand-dark/50">
           Utseende & kontakt
@@ -215,9 +216,14 @@ function ButiksdesignPage() {
           </Link>
           . Internt namn: <span className="font-mono">{branding.internalName}</span>
         </p>
+        <p className="mt-2 text-sm text-brand-dark/60">
+          Förhandsvisningen till höger (under större skärmar) uppdateras direkt när du
+          ändrar fält — spara när du vill publicera ändringarna.
+        </p>
       </div>
 
-      <form onSubmit={onSave} className="space-y-10">
+      <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-12">
+        <form onSubmit={onSave} className="min-w-0 flex-1 space-y-10">
         <section className="space-y-3 rounded-lg border border-brand-dark/10 bg-brand-surface p-5 shadow-sm">
           <h2 className="font-heading text-lg font-semibold text-brand-dark">
             Namn i butiken
@@ -401,12 +407,39 @@ function ButiksdesignPage() {
             to="/butik/$shopSlug"
             params={{ shopSlug: session.shopSlug }}
             search={emptyButikListingSearch}
+            target="_blank"
+            rel="noreferrer"
             className="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-brand-dark underline decoration-brand-dark/30 underline-offset-4"
           >
-            Förhandsgranska
+            Öppna kundbutik
           </Link>
         </div>
       </form>
+
+      <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[min(100%,380px)] lg:self-start">
+        <div className="mb-3 flex items-baseline justify-between gap-2">
+          <h2 className="font-heading text-sm font-semibold text-brand-dark">
+            Live förhandsvisning
+          </h2>
+          <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-brand-dark/45">
+            Utkast
+          </span>
+        </div>
+        <StorefrontDesignPreview
+          internalName={branding.internalName}
+          storefrontDisplayName={storefrontDisplayName}
+          contactEmail={contactEmail}
+          contactPhone={contactPhone}
+          contactWebsite={contactWebsite}
+          contactNote={contactNote}
+          colorPrimary={colorPrimary}
+          colorAccent={colorAccent}
+          colorBg={colorBg}
+          colorSurface={colorSurface}
+          logoUrl={branding.logoUrl}
+        />
+      </aside>
+      </div>
     </main>
   )
 }

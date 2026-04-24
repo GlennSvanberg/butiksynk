@@ -8,9 +8,13 @@
  * @module
  */
 
+import type * as auth from "../auth.js";
 import type * as crons from "../crons.js";
+import type * as http from "../http.js";
+import type * as lib_newShopFromSignup from "../lib/newShopFromSignup.js";
 import type * as lib_productAttributes from "../lib/productAttributes.js";
 import type * as lib_retention from "../lib/retention.js";
+import type * as lib_shopAccess from "../lib/shopAccess.js";
 import type * as lib_shopBranding from "../lib/shopBranding.js";
 import type * as lib_shops from "../lib/shops.js";
 import type * as lib_slugify from "../lib/slugify.js";
@@ -27,9 +31,13 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
   crons: typeof crons;
+  http: typeof http;
+  "lib/newShopFromSignup": typeof lib_newShopFromSignup;
   "lib/productAttributes": typeof lib_productAttributes;
   "lib/retention": typeof lib_retention;
+  "lib/shopAccess": typeof lib_shopAccess;
   "lib/shopBranding": typeof lib_shopBranding;
   "lib/shops": typeof lib_shops;
   "lib/slugify": typeof lib_slugify;

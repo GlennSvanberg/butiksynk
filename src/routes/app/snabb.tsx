@@ -71,7 +71,7 @@ function AppSnabbListingPage() {
     )
 
     try {
-      const postUrl = await generateUploadUrl()
+      const postUrl = await generateUploadUrl({ shopId: session.shopId })
       const uploadResult = await fetch(postUrl, {
         method: 'POST',
         headers: { 'Content-Type': preview.file.type || 'image/jpeg' },

@@ -1,3 +1,4 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import {
   internalMutation,
@@ -11,12 +12,37 @@ import {
   productAttributeValidator,
   storedProductAttributeValidator,
 } from "./lib/productAttributes";
-import { getOrCreateDefaultShopId } from "./lib/shops";
-import { computePathLabel } from "./taxonomy";
+import { requireShopMembership } from "./lib/shopAccess";
+import {
+  loadTaxonomyNodesByShop,
+  pathSearchBlobFromTaxonomyMap,
+  pathSegmentsFromTaxonomyMap,
+  type TaxonomyNodeByIdMap,
+} from "./taxonomy";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 
-// TODO: Skydda createProduct, generateUploadUrl och createProductFromPhotoCapture med auth när inloggning finns.
+async function resolveShopIdForWrite(
+  ctx: Parameters<typeof requireShopMembership>[0],
+  shopId: Id<"shops"> | undefined,
+): Promise<Id<"shops">> {
+  if (shopId !== undefined) {
+    await requireShopMembership(ctx, shopId);
+    return shopId;
+  }
+  const userId = await getAuthUserId(ctx);
+  if (userId === null) {
+    throw new Error("Du måste vara inloggad.");
+  }
+  const first = await ctx.db
+    .query("shopMemberships")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .first();
+  if (!first) {
+    throw new Error("Ingen butik hittades för ditt konto.");
+  }
+  return first.shopId;
+}
 
 const productFields = {
   title: v.string(),
@@ -69,14 +95,30 @@ function isPubliclyVisibleProduct(doc: Doc<"products">): boolean {
   return true;
 }
 
-async function enrichProductDoc(ctx: QueryCtx, doc: Doc<"products">) {
+async function enrichProductDoc(
+  ctx: QueryCtx,
+  doc: Doc<"products">,
+  taxonomyById?: TaxonomyNodeByIdMap,
+) {
+  let categoryPathSegments: Array<string> = [];
+  if (doc.categoryId !== undefined) {
+    if (taxonomyById) {
+      categoryPathSegments = pathSegmentsFromTaxonomyMap(
+        doc.categoryId,
+        taxonomyById,
+      );
+    } else if (doc.shopId !== undefined) {
+      const map = await loadTaxonomyNodesByShop(ctx, doc.shopId);
+      categoryPathSegments = pathSegmentsFromTaxonomyMap(
+        doc.categoryId,
+        map,
+      );
+    }
+  }
+
   return {
     ...doc,
-    categoryLabel:
-      doc.categoryPathCached ??
-      (doc.categoryId
-        ? await computePathLabel(ctx, doc.categoryId)
-        : undefined),
+    categoryPathSegments,
     imageUrl: await ctx.storage.getUrl(doc.imageStorageId),
     sourceImageUrl: doc.sourceImageStorageId
       ? await ctx.storage.getUrl(doc.sourceImageStorageId)
@@ -87,25 +129,51 @@ async function enrichProductDoc(ctx: QueryCtx, doc: Doc<"products">) {
 export const listProducts = query({
   args: {},
   handler: async (ctx) => {
+    if ((await getAuthUserId(ctx)) === null) {
+      throw new Error("Du måste vara inloggad.");
+    }
     const docs = await ctx.db
       .query("products")
       .order("desc")
       .collect();
     const active = docs.filter(isActiveProduct);
-    return Promise.all(active.map((doc) => enrichProductDoc(ctx, doc)));
+    const taxonomyByShop = new Map<Id<"shops">, TaxonomyNodeByIdMap>();
+    for (const doc of active) {
+      if (doc.shopId !== undefined && !taxonomyByShop.has(doc.shopId)) {
+        taxonomyByShop.set(
+          doc.shopId,
+          await loadTaxonomyNodesByShop(ctx, doc.shopId),
+        );
+      }
+    }
+    return Promise.all(
+      active.map((doc) =>
+        enrichProductDoc(
+          ctx,
+          doc,
+          doc.shopId !== undefined
+            ? taxonomyByShop.get(doc.shopId)
+            : undefined,
+        ),
+      ),
+    );
   },
 });
 
 export const listProductsByShop = query({
   args: { shopId: v.id("shops") },
   handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
     const docs = await ctx.db
       .query("products")
       .withIndex("by_shop", (q) => q.eq("shopId", args.shopId))
       .order("desc")
       .collect();
     const active = docs.filter(isActiveProduct);
-    return Promise.all(active.map((doc) => enrichProductDoc(ctx, doc)));
+    const taxonomyById = await loadTaxonomyNodesByShop(ctx, args.shopId);
+    return Promise.all(
+      active.map((doc) => enrichProductDoc(ctx, doc, taxonomyById)),
+    );
   },
 });
 
@@ -130,6 +198,8 @@ export const listProductsForPublicStorefront = query({
       .collect();
     docs = docs.filter(isPubliclyVisibleProduct);
 
+    const taxonomyById = await loadTaxonomyNodesByShop(ctx, shop._id);
+
     if (args.categoryId !== undefined) {
       const node = await ctx.db.get("taxonomyNodes", args.categoryId);
       if (!node || node.shopId !== shop._id) {
@@ -142,18 +212,18 @@ export const listProductsForPublicStorefront = query({
     if (rawQuery && rawQuery.length > 0) {
       const needle = rawQuery.toLocaleLowerCase("sv");
       docs = docs.filter((d) => {
-        const hay = [
-          d.title,
-          d.description,
-          d.categoryPathCached ?? "",
-        ]
+        const catBlob = pathSearchBlobFromTaxonomyMap(
+          d.categoryId,
+          taxonomyById,
+        );
+        const hay = [d.title, d.description, catBlob]
           .join("\n")
           .toLocaleLowerCase("sv");
         return hay.includes(needle);
       });
     }
 
-    return Promise.all(docs.map((doc) => enrichProductDoc(ctx, doc)));
+    return Promise.all(docs.map((doc) => enrichProductDoc(ctx, doc, taxonomyById)));
   },
 });
 
@@ -178,7 +248,8 @@ export const getProductForPublicStorefront = query({
     ) {
       return null;
     }
-    return enrichProductDoc(ctx, doc);
+    const taxonomyById = await loadTaxonomyNodesByShop(ctx, shop._id);
+    return enrichProductDoc(ctx, doc, taxonomyById);
   },
 });
 
@@ -188,11 +259,13 @@ export const getProductForEdit = query({
     shopId: v.id("shops"),
   },
   handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
     const doc = await ctx.db.get("products", args.productId);
     if (!doc || !isActiveProduct(doc) || doc.shopId !== args.shopId) {
       return null;
     }
-    return enrichProductDoc(ctx, doc);
+    const taxonomyById = await loadTaxonomyNodesByShop(ctx, args.shopId);
+    return enrichProductDoc(ctx, doc, taxonomyById);
   },
 });
 
@@ -208,6 +281,7 @@ export const updateProduct = mutation({
     imageStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
     const existing = await requireActiveProductForShop(
       ctx,
       args.productId,
@@ -218,14 +292,12 @@ export const updateProduct = mutation({
       throw new Error("Vänta tills AI listan är klar innan du redigerar.");
     }
     const categoryId = args.categoryId;
-    const categoryPathCached = await computePathLabel(ctx, categoryId);
     const imageStorageId = args.imageStorageId ?? existing.imageStorageId;
     await ctx.db.patch("products", args.productId, {
       title: args.title,
       description: args.description,
       priceSek: args.priceSek,
       categoryId,
-      categoryPathCached,
       attributes: args.attributes,
       imageStorageId,
     });
@@ -238,6 +310,7 @@ export const softDeleteProduct = mutation({
     shopId: v.id("shops"),
   },
   handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
     await requireActiveProductForShop(ctx, args.productId, args.shopId);
     await ctx.db.patch("products", args.productId, { deletedAt: Date.now() });
   },
@@ -278,6 +351,14 @@ export const purgeOldSoftDeleted = internalMutation({
 });
 
 export const generateUploadUrl = mutation({
+  args: { shopId: v.id("shops") },
+  handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const internalGenerateUploadUrl = internalMutation({
   args: {},
   handler: async (ctx) => {
     return await ctx.storage.generateUploadUrl();
@@ -287,16 +368,14 @@ export const generateUploadUrl = mutation({
 export const createProduct = mutation({
   args: productFields,
   handler: async (ctx, args) => {
-    const shopId = args.shopId ?? (await getOrCreateDefaultShopId(ctx));
+    const shopId = await resolveShopIdForWrite(ctx, args.shopId);
     await assertCategoryBelongsToShop(ctx, shopId, args.categoryId);
-    const categoryPathCached = await computePathLabel(ctx, args.categoryId);
     await ctx.db.insert("products", {
       title: args.title,
       description: args.description,
       priceSek: args.priceSek,
       shopId,
       categoryId: args.categoryId,
-      categoryPathCached,
       attributes: args.attributes,
       imageStorageId: args.imageStorageId,
     });
@@ -309,7 +388,7 @@ export const createProductFromPhotoCapture = mutation({
     shopId: v.optional(v.id("shops")),
   },
   handler: async (ctx, args) => {
-    const shopId = args.shopId ?? (await getOrCreateDefaultShopId(ctx));
+    const shopId = await resolveShopIdForWrite(ctx, args.shopId);
     const productId = await ctx.db.insert("products", {
       title: "Bearbetar…",
       description: "",
@@ -364,7 +443,6 @@ export const applyAiListingResult = internalMutation({
     description: v.string(),
     priceSek: v.number(),
     categoryId: v.id("taxonomyNodes"),
-    categoryPathCached: v.string(),
     attributes: v.array(productAttributeValidator),
     /** Om utelämnad behålls befintlig visningsbild (t.ex. rå butiksbild om Gemini misslyckades). */
     processedImageStorageId: v.optional(v.id("_storage")),
@@ -379,7 +457,6 @@ export const applyAiListingResult = internalMutation({
       description: args.description,
       priceSek: args.priceSek,
       categoryId: args.categoryId,
-      categoryPathCached: args.categoryPathCached,
       attributes: args.attributes,
       category: undefined,
       ...(args.processedImageStorageId !== undefined

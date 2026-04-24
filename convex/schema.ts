@@ -1,8 +1,19 @@
 import { defineSchema, defineTable } from "convex/server";
+import { authTables } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { storedProductAttributeValidator } from "./lib/productAttributes";
 
 export default defineSchema({
+  ...authTables,
+
+  shopMemberships: defineTable({
+    userId: v.id("users"),
+    shopId: v.id("shops"),
+  })
+    .index("by_user", ["userId"])
+    .index("by_shop", ["shopId"])
+    .index("by_user_and_shop", ["userId", "shopId"]),
+
   numbers: defineTable({
     value: v.number(),
   }),
@@ -43,7 +54,7 @@ export default defineSchema({
     category: v.optional(v.string()),
     shopId: v.optional(v.id("shops")),
     categoryId: v.optional(v.id("taxonomyNodes")),
-    /** Denormaliserad för listor och kanaler */
+    /** Legacy; ej längre skriven — kategori visas via `categoryId` + taxonomiträd. */
     categoryPathCached: v.optional(v.string()),
     attributes: v.array(storedProductAttributeValidator),
     imageStorageId: v.id("_storage"),

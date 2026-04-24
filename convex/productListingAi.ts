@@ -10,7 +10,7 @@ import {
   PRODUCT_ATTRIBUTE_KEYS,
 } from "../shared/attributes";
 import { productListingAISchema } from "../shared/productAiSchema";
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import type { ProductAttribute } from "./lib/productAttributes";
@@ -326,7 +326,6 @@ export const runPipeline = internalAction({
         description: revalidate.data.description,
         priceSek,
         categoryId: resolved.categoryId,
-        categoryPathCached: resolved.categoryPathCached,
         attributes,
       };
 
@@ -343,7 +342,7 @@ export const runPipeline = internalAction({
       }
 
       const postUrl: string = await ctx.runMutation(
-        api.products.generateUploadUrl,
+        internal.products.internalGenerateUploadUrl,
         {},
       );
 

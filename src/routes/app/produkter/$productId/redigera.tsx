@@ -3,6 +3,10 @@ import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { api } from '../../../../../convex/_generated/api'
 import type { Id } from '../../../../../convex/_generated/dataModel'
+import {
+  TaxonomyTreePicker,
+  flattenTaxonomyIdsPreorder,
+} from '~/components/TaxonomyTreePicker'
 import { formatProductAttributeDisplay } from '~/lib/formatProductAttribute'
 import { useShopSession } from '~/lib/shopSession'
 
@@ -22,8 +26,8 @@ function RedigeraProdukt() {
     api.products.getProductForEdit,
     session ? { productId, shopId: session.shopId } : 'skip',
   )
-  const categories = useQuery(
-    api.taxonomy.listCategoryOptions,
+  const taxonomyTree = useQuery(
+    api.taxonomy.listTaxonomyTree,
     session ? { shopId: session.shopId } : 'skip',
   )
   const updateProduct = useMutation(api.products.updateProduct)
@@ -54,7 +58,7 @@ function RedigeraProdukt() {
     if (getProduct === null || getProduct === undefined) {
       return
     }
-    if (categories === undefined) {
+    if (taxonomyTree === undefined) {
       return
     }
     if (formSyncedId.current === getProduct._id) {
@@ -63,15 +67,10 @@ function RedigeraProdukt() {
     setTitle(getProduct.title)
     setDescription(getProduct.description)
     setPriceSek(String(getProduct.priceSek))
-    setCategoryId(
-      getProduct.categoryId
-        ? getProduct.categoryId
-        : categories[0]
-          ? categories[0].id
-          : '',
-    )
+    const firstId = flattenTaxonomyIdsPreorder(taxonomyTree)[0] ?? ''
+    setCategoryId(getProduct.categoryId ? getProduct.categoryId : firstId)
     formSyncedId.current = getProduct._id
-  }, [getProduct, categories, productId])
+  }, [getProduct, taxonomyTree, productId])
 
   const onSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -130,13 +129,13 @@ function RedigeraProdukt() {
   )
 
   const onFile = async (file: File | undefined) => {
-    if (!file || !file.type.startsWith('image/')) {
+    if (!session || !file || !file.type.startsWith('image/')) {
       return
     }
     setError(null)
     setUploadBusy(true)
     try {
-      const postUrl = await generateUploadUrl()
+      const postUrl = await generateUploadUrl({ shopId: session.shopId })
       const res = await fetch(postUrl, {
         method: 'POST',
         headers: { 'Content-Type': file.type || 'image/jpeg' },
@@ -274,28 +273,26 @@ function RedigeraProdukt() {
           />
         </div>
         <div>
-          <label
+          <p
             className="block text-sm font-medium text-brand-dark"
-            htmlFor="edit-cat"
+            id="edit-cat"
           >
             Kategori
-          </label>
-          <select
-            id="edit-cat"
-            className="mt-1 w-full rounded-lg border border-brand-dark/15 bg-white px-3 py-2 text-sm text-brand-dark"
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            required
-            disabled={getProduct.captureStatus === 'processing' || saving}
-          >
-            {categories && categories.length > 0
-              ? categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.pathLabel}
-                  </option>
-                ))
-              : null}
-          </select>
+          </p>
+          <p className="mt-0.5 text-xs text-brand-dark/60">
+            Välj nod i trädet (rot eller undernivåer).
+          </p>
+          {taxonomyTree !== undefined ? (
+            <TaxonomyTreePicker
+              className="mt-2 border-brand-dark/15 bg-white text-brand-dark"
+              nodes={taxonomyTree}
+              value={categoryId}
+              onChange={setCategoryId}
+              disabled={getProduct.captureStatus === 'processing' || saving}
+            />
+          ) : (
+            <p className="mt-2 text-sm text-brand-dark/60">Laddar kategorier …</p>
+          )}
         </div>
 
         {getProduct.attributes.length > 0 && (

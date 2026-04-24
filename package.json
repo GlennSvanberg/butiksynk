@@ -4,13 +4,15 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-    "dev": "convex dev --start \"vite dev\"",
+    "dev": "npx --yes concurrently@9 -k \"convex dev\" \"vite dev\"",
     "build": "vite build && tsc --noEmit",
     "start": "node .output/server/index.mjs",
     "format": "prettier --write .",
     "lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
+    "@auth/core": "^0.37.0",
+    "@convex-dev/auth": "^0.0.91",
     "@convex-dev/react-query": "^0.1.0",
     "@tanstack/react-query": "^5.97.0",
     "@tanstack/react-router": "^1.168.13",

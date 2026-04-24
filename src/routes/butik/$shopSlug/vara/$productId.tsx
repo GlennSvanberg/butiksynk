@@ -4,6 +4,7 @@ import { convexQuery } from '@convex-dev/react-query'
 import { api } from '../../../../../convex/_generated/api'
 import type { Id } from '../../../../../convex/_generated/dataModel'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
+import { CategoryBreadcrumb } from '~/components/CategoryBreadcrumb'
 import { formatProductAttributeDisplay } from '~/lib/formatProductAttribute'
 
 export const Route = createFileRoute('/butik/$shopSlug/vara/$productId')({
@@ -29,7 +30,7 @@ function ButikProductDetail() {
 
   if (isPending) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <main className="w-full px-4 py-10 sm:px-6 lg:px-8 xl:px-10">
         <p className="text-sm text-[color:var(--sf-primary)]/70">Laddar …</p>
       </main>
     )
@@ -37,7 +38,7 @@ function ButikProductDetail() {
 
   if (!product) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <main className="w-full px-4 py-10 sm:px-6 lg:px-8 xl:px-10">
         <p className="font-heading text-lg font-semibold text-[color:var(--sf-primary)]">
           Varan finns inte
         </p>
@@ -54,7 +55,7 @@ function ButikProductDetail() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
+    <main className="w-full px-4 py-8 sm:px-6 sm:py-10 lg:px-8 xl:px-10">
       <Link
         to="/butik/$shopSlug"
         params={{ shopSlug }}
@@ -65,10 +66,10 @@ function ButikProductDetail() {
       </Link>
 
       <article
-        className="mt-8 overflow-hidden rounded-lg border border-[color:var(--sf-primary)]/10 shadow-sm"
+        className="mt-8 overflow-hidden rounded-xl border border-[color:var(--sf-primary)]/10 shadow-sm lg:grid lg:grid-cols-2 lg:items-stretch"
         style={{ backgroundColor: 'var(--sf-surface)' }}
       >
-        <div className="relative aspect-square w-full shrink-0 overflow-hidden bg-[var(--sf-bg)]">
+        <div className="relative aspect-square w-full shrink-0 overflow-hidden bg-[var(--sf-bg)] lg:aspect-auto lg:min-h-[22rem]">
           {product.imageUrl ? (
             <img
               src={product.imageUrl}
@@ -81,7 +82,7 @@ function ButikProductDetail() {
             </div>
           )}
         </div>
-        <div className="space-y-4 p-5 sm:p-8">
+        <div className="space-y-4 p-5 sm:p-8 lg:flex lg:flex-col lg:justify-center lg:p-10 xl:p-12">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <h1 className="font-heading text-2xl font-bold tracking-tight text-[color:var(--sf-primary)] sm:text-3xl">
               {product.title}
@@ -90,14 +91,20 @@ function ButikProductDetail() {
               {sekFormatter.format(product.priceSek)}
             </p>
           </div>
-          <p className="font-mono text-xs uppercase tracking-wide text-[color:var(--sf-primary)]/50">
-            {product.categoryLabel ??
-              ('category' in product &&
-              typeof product.category === 'string'
-                ? product.category
-                : undefined) ??
-              '—'}
-          </p>
+          <div className="text-[color:var(--sf-primary)]/50">
+            {Array.isArray(product.categoryPathSegments) &&
+            product.categoryPathSegments.length > 0 ? (
+              <CategoryBreadcrumb segments={product.categoryPathSegments} />
+            ) : 'category' in product &&
+              typeof product.category === 'string' &&
+              product.category.length > 0 ? (
+              <p className="font-mono text-xs uppercase tracking-wide">
+                {product.category}
+              </p>
+            ) : (
+              <p className="font-mono text-xs uppercase tracking-wide">—</p>
+            )}
+          </div>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-[color:var(--sf-primary)]/85">
             {product.description}
           </p>

@@ -1,3 +1,4 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { DEMO_SHOP_SLUG } from "../shared/shopConstants";
 import {
@@ -7,21 +8,67 @@ import {
   normalizeOptionalHex,
   trimToMax,
 } from "./lib/shopBranding";
+import { requireShopMembership } from "./lib/shopAccess";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 
 export { DEMO_SHOP_SLUG };
 
-/** Publik lista för inloggningsdropdown (ingen riktig auth ännu). */
-export const listForLogin = query({
+/** Butiker som den inloggade användaren har tillgång till. */
+export const listMyShops = query({
   args: {},
   handler: async (ctx) => {
-    const shops = await ctx.db.query("shops").collect();
-    return shops.map((s) => ({
-      _id: s._id,
-      name: s.name,
-      slug: s.slug,
-    }));
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      return [];
+    }
+    const links = await ctx.db
+      .query("shopMemberships")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const out: Array<{ _id: Id<"shops">; name: string; slug: string }> = [];
+    for (const m of links) {
+      const shop = await ctx.db.get("shops", m.shopId);
+      if (shop) {
+        out.push({ _id: shop._id, name: shop.name, slug: shop.slug });
+      }
+    }
+    return out;
+  },
+});
+
+/** Välj butik för klientsession efter inloggning (föredrar demosbutik om den finns). */
+export const bootstrapViewerShopSession = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      return null;
+    }
+    const links = await ctx.db
+      .query("shopMemberships")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    if (links.length === 0) {
+      return null;
+    }
+    const shops: Array<Doc<"shops">> = [];
+    for (const m of links) {
+      const shop = await ctx.db.get("shops", m.shopId);
+      if (shop) {
+        shops.push(shop);
+      }
+    }
+    if (shops.length === 0) {
+      return null;
+    }
+    const preferred =
+      shops.find((s) => s.slug === DEMO_SHOP_SLUG) ?? shops[0];
+    return {
+      shopId: preferred._id,
+      shopName: preferred.name,
+      shopSlug: preferred.slug,
+    };
   },
 });
 
@@ -85,6 +132,7 @@ export const getStorefrontBrandingBySlug = query({
 export const getShopBrandingForAdmin = query({
   args: { shopId: v.id("shops") },
   handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
     const shop = await ctx.db.get("shops", args.shopId);
     if (!shop) {
       return null;
@@ -241,6 +289,7 @@ export const updateStorefrontBranding = mutation({
     clearLogo: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
     const shop = await ctx.db.get("shops", args.shopId);
     if (!shop) {
       throw new Error("Butiken hittades inte.");
@@ -275,6 +324,7 @@ export const updateStorefrontBranding = mutation({
 export const generateStorefrontLogoUploadUrl = mutation({
   args: { shopId: v.id("shops") },
   handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
     const shop = await ctx.db.get("shops", args.shopId);
     if (!shop) {
       throw new Error("Butiken hittades inte.");
@@ -290,6 +340,9 @@ export const generateStorefrontLogoUploadUrl = mutation({
 export const ensureDemoShopAndBackfill = mutation({
   args: {},
   handler: async (ctx) => {
+    if ((await getAuthUserId(ctx)) === null) {
+      throw new Error("Du måste vara inloggad.");
+    }
     let demo = await ctx.db
       .query("shops")
       .withIndex("by_slug", (q) => q.eq("slug", DEMO_SHOP_SLUG))

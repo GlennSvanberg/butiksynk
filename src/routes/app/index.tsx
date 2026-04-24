@@ -4,6 +4,7 @@ import { useMutation } from 'convex/react'
 import { convexQuery } from '@convex-dev/react-query'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
+import { CategoryBreadcrumb } from '~/components/CategoryBreadcrumb'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
 import { useConfirm } from '~/lib/confirm'
 import { useShopSession } from '~/lib/shopSession'
@@ -17,6 +18,42 @@ const sekFormatter = new Intl.NumberFormat('sv-SE', {
   currency: 'SEK',
   maximumFractionDigits: 0,
 })
+
+function AdminProductCategoryRow({
+  product,
+}: {
+  product: {
+    categoryPathSegments?: Array<string>
+    category?: string
+  }
+}) {
+  const segments = Array.isArray(product.categoryPathSegments)
+    ? product.categoryPathSegments
+    : []
+  if (segments.length > 0) {
+    return (
+      <div className="text-brand-dark/50">
+        <CategoryBreadcrumb segments={segments} />
+      </div>
+    )
+  }
+  if (
+    'category' in product &&
+    typeof product.category === 'string' &&
+    product.category.length > 0
+  ) {
+    return (
+      <p className="font-mono text-xs uppercase tracking-wide text-brand-dark/50">
+        {product.category}
+      </p>
+    )
+  }
+  return (
+    <p className="font-mono text-xs uppercase tracking-wide text-brand-dark/50">
+      —
+    </p>
+  )
+}
 
 function AdminDashboard() {
   const { session } = useShopSession()
@@ -177,14 +214,7 @@ function AdminDashboard() {
                         Ta bort
                       </button>
                     </div>
-                    <p className="font-mono text-xs uppercase tracking-wide text-brand-dark/50">
-                      {product.categoryLabel ??
-                        ('category' in product &&
-                        typeof product.category === 'string'
-                          ? product.category
-                          : undefined) ??
-                        '—'}
-                    </p>
+                    <AdminProductCategoryRow product={product} />
                     <p className="line-clamp-3 text-sm leading-relaxed text-brand-dark/80">
                       {product.description}
                     </p>

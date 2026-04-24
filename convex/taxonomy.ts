@@ -1,3 +1,4 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import {
   internalMutation,
@@ -5,6 +6,7 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import { requireShopMembership } from "./lib/shopAccess";
 import { slugifyTaxonomySegment } from "./lib/slugify";
 import { getOrCreateDefaultShopId } from "./lib/shops";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -104,6 +106,15 @@ export async function computePathLabel(
   ctx: { db: QueryCtx["db"] },
   nodeId: Id<"taxonomyNodes">,
 ): Promise<string> {
+  const parts = await computePathSegments(ctx, nodeId);
+  return parts.join(" > ");
+}
+
+/** Namn från rot till nod (för UI-steg / brödsmulor). */
+export async function computePathSegments(
+  ctx: { db: QueryCtx["db"] },
+  nodeId: Id<"taxonomyNodes">,
+): Promise<Array<string>> {
   const parts: Array<string> = [];
   let currentId: Id<"taxonomyNodes"> | null = nodeId;
   while (currentId) {
@@ -117,10 +128,104 @@ export async function computePathLabel(
     parts.push(node.name);
     currentId = node.parentId;
   }
-  return parts.reverse().join(" > ");
+  return parts.reverse();
 }
 
-async function ensureRootStructure(
+export type TaxonomyNodeByIdMap = Map<
+  Id<"taxonomyNodes">,
+  Doc<"taxonomyNodes">
+>;
+
+export async function loadTaxonomyNodesByShop(
+  ctx: QueryCtx,
+  shopId: Id<"shops">,
+): Promise<TaxonomyNodeByIdMap> {
+  const nodes = await ctx.db
+    .query("taxonomyNodes")
+    .withIndex("by_shop", (q) => q.eq("shopId", shopId))
+    .collect();
+  return new Map(nodes.map((n) => [n._id, n] as const));
+}
+
+export function pathSegmentsFromTaxonomyMap(
+  categoryId: Id<"taxonomyNodes"> | undefined,
+  byId: TaxonomyNodeByIdMap,
+): Array<string> {
+  if (categoryId === undefined) {
+    return [];
+  }
+  const parts: Array<string> = [];
+  let cur: Doc<"taxonomyNodes"> | undefined = byId.get(categoryId);
+  const seen = new Set<string>();
+  while (cur && !seen.has(String(cur._id))) {
+    seen.add(String(cur._id));
+    parts.push(cur.name);
+    cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+  }
+  return parts.reverse();
+}
+
+export function pathSearchBlobFromTaxonomyMap(
+  categoryId: Id<"taxonomyNodes"> | undefined,
+  byId: TaxonomyNodeByIdMap,
+): string {
+  return pathSegmentsFromTaxonomyMap(categoryId, byId)
+    .join("\n")
+    .toLocaleLowerCase("sv");
+}
+
+export type TaxonomyTreeNode = {
+  id: Id<"taxonomyNodes">;
+  name: string;
+  slug: string;
+  sortOrder?: number;
+  children: Array<TaxonomyTreeNode>;
+};
+
+function sortTaxonomyDocs(
+  a: Doc<"taxonomyNodes">,
+  b: Doc<"taxonomyNodes">,
+): number {
+  const ao = a.sortOrder ?? 0;
+  const bo = b.sortOrder ?? 0;
+  if (ao !== bo) {
+    return ao - bo;
+  }
+  return a.name.localeCompare(b.name, "sv");
+}
+
+export function buildTaxonomyTree(
+  nodes: Array<Doc<"taxonomyNodes">>,
+): Array<TaxonomyTreeNode> {
+  const byParent = new Map<string, Array<Doc<"taxonomyNodes">>>();
+  for (const n of nodes) {
+    const key =
+      n.parentId === null ? "__root__" : String(n.parentId);
+    const list = byParent.get(key);
+    if (list) {
+      list.push(n);
+    } else {
+      byParent.set(key, [n]);
+    }
+  }
+  for (const list of byParent.values()) {
+    list.sort(sortTaxonomyDocs);
+  }
+  const toDto = (node: Doc<"taxonomyNodes">): TaxonomyTreeNode => {
+    const rawChildren = byParent.get(String(node._id)) ?? [];
+    return {
+      id: node._id,
+      name: node.name,
+      slug: node.slug,
+      sortOrder: node.sortOrder,
+      children: rawChildren.map(toDto),
+    };
+  };
+  const roots = byParent.get("__root__") ?? [];
+  return roots.map(toDto);
+}
+
+export async function ensureRootStructure(
   ctx: MutationCtx,
   shopId: Id<"shops">,
 ): Promise<{ rootId: Id<"taxonomyNodes">; importId: Id<"taxonomyNodes"> }> {
@@ -239,23 +344,14 @@ export const resolveCategoryProposal = internalMutation({
       const segments = args.categoryResolution.path.map((s) => s.trim()).filter(Boolean);
       if (segments.length === 0) {
         const fallback = await getOrCreateFallbackLeaf(ctx, args.shopId);
-        return {
-          categoryId: fallback,
-          categoryPathCached: await computePathLabel(ctx, fallback),
-        };
+        return { categoryId: fallback };
       }
       const id = await walkExistingPath(ctx, args.shopId, segments);
       if (id) {
-        return {
-          categoryId: id,
-          categoryPathCached: await computePathLabel(ctx, id),
-        };
+        return { categoryId: id };
       }
       const fallback = await getOrCreateFallbackLeaf(ctx, args.shopId);
-      return {
-        categoryId: fallback,
-        categoryPathCached: await computePathLabel(ctx, fallback),
-      };
+      return { categoryId: fallback };
     }
 
     const parentSegments = args.categoryResolution.parentPath
@@ -288,10 +384,7 @@ export const resolveCategoryProposal = internalMutation({
       slug,
       sortOrder: Date.now(),
     });
-    return {
-      categoryId: newId,
-      categoryPathCached: await computePathLabel(ctx, newId),
-    };
+    return { categoryId: newId };
   },
 });
 
@@ -384,6 +477,9 @@ function migrateLegacyAttribute(a: LegacyAttr): ProductAttribute {
 export const ensureDemoEnvironment = mutation({
   args: {},
   handler: async (ctx) => {
+    if ((await getAuthUserId(ctx)) === null) {
+      throw new Error("Du måste vara inloggad.");
+    }
     const shopId = await getOrCreateDefaultShopId(ctx);
     await ensureRootStructure(ctx, shopId);
 
@@ -412,7 +508,6 @@ export const ensureDemoEnvironment = mutation({
             : FALLBACK_NAME;
         const leafId = await findOrCreateLeafUnderImport(ctx, shopId, label);
         patch.categoryId = leafId;
-        patch.categoryPathCached = await computePathLabel(ctx, leafId);
       }
 
       const attrs = p.attributes as Array<unknown>;
@@ -436,6 +531,7 @@ export const ensureDemoEnvironment = mutation({
 export const ensureTaxonomyForShop = mutation({
   args: { shopId: v.id("shops") },
   handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
     await ensureRootStructure(ctx, args.shopId);
     return { ok: true as const };
   },
@@ -444,6 +540,7 @@ export const ensureTaxonomyForShop = mutation({
 export const listCategoryOptions = query({
   args: { shopId: v.id("shops") },
   handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
     const nodes = await ctx.db
       .query("taxonomyNodes")
       .withIndex("by_shop", (q) => q.eq("shopId", args.shopId))
@@ -464,6 +561,38 @@ export const listCategoryOptions = query({
     }
     rows.sort((a, b) => a.pathLabel.localeCompare(b.pathLabel, "sv"));
     return rows;
+  },
+});
+
+/** Hierarki för admin-UI (välj kategori). */
+export const listTaxonomyTree = query({
+  args: { shopId: v.id("shops") },
+  handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
+    const nodes = await ctx.db
+      .query("taxonomyNodes")
+      .withIndex("by_shop", (q) => q.eq("shopId", args.shopId))
+      .collect();
+    return buildTaxonomyTree(nodes);
+  },
+});
+
+/** Publik butik: kategoriträd för filter. */
+export const listTaxonomyTreeByShopSlug = query({
+  args: { slug: v.string() },
+  handler: async (ctx, args) => {
+    const shop = await ctx.db
+      .query("shops")
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+      .unique();
+    if (!shop) {
+      return [];
+    }
+    const nodes = await ctx.db
+      .query("taxonomyNodes")
+      .withIndex("by_shop", (q) => q.eq("shopId", shop._id))
+      .collect();
+    return buildTaxonomyTree(nodes);
   },
 });
 
