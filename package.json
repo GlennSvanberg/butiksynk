@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "npx --yes concurrently@9 -k \"convex dev\" \"vite dev\"",
-    "build": "vite build && tsc --noEmit",
+    "build:icons": "node scripts/generate-brand-icons.mjs",
+    "build": "node scripts/generate-brand-icons.mjs && vite build && tsc --noEmit",
     "start": "node .output/server/index.mjs",
     "format": "prettier --write .",
     "lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0",

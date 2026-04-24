@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
 import * as React from 'react'
+import { SelioLogoMark } from '~/components/SelioLogoMark'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
 import { cn } from '~/lib/utils'
 
@@ -95,11 +96,7 @@ export function AdminAppNav({
               className="flex items-center gap-2"
               onClick={closeMobile}
             >
-              <img
-                src="/logo.png"
-                alt="Selio logo"
-                className="size-7 shrink-0"
-              />
+              <SelioLogoMark />
               <span className="font-heading text-lg font-bold tracking-tight text-brand-dark">
                 Selio
               </span>

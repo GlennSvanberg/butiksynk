@@ -540,6 +540,46 @@ export const ensureTaxonomyForShop = mutation({
   },
 });
 
+const TAXONOMY_NAME_MAX_LEN = 120;
+
+/** Manuell undernod i admin (t.ex. redigera produkt). */
+export const createTaxonomyChild = mutation({
+  args: {
+    shopId: v.id("shops"),
+    parentId: v.id("taxonomyNodes"),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
+    const parent = await ctx.db.get("taxonomyNodes", args.parentId);
+    if (!parent || parent.shopId !== args.shopId) {
+      throw new Error("Ogiltig föräldernod.");
+    }
+    const trimmed = args.name.trim();
+    if (trimmed.length === 0) {
+      throw new Error("Namn krävs.");
+    }
+    if (trimmed.length > TAXONOMY_NAME_MAX_LEN) {
+      throw new Error(`Namnet får max ${TAXONOMY_NAME_MAX_LEN} tecken.`);
+    }
+    const baseSlug = slugifyTaxonomySegment(trimmed);
+    const slug = await uniqueSlugForParent(
+      ctx,
+      args.shopId,
+      args.parentId,
+      baseSlug,
+    );
+    const newId = await ctx.db.insert("taxonomyNodes", {
+      shopId: args.shopId,
+      parentId: args.parentId,
+      name: trimmed,
+      slug,
+      sortOrder: Date.now(),
+    });
+    return { id: newId };
+  },
+});
+
 export const listCategoryOptions = query({
   args: { shopId: v.id("shops") },
   handler: async (ctx, args) => {

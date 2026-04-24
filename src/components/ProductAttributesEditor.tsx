@@ -98,20 +98,31 @@ type Props = {
   attributes: Array<StoredProductAttribute>
   onChange: (next: Array<StoredProductAttribute>) => void
   disabled: boolean
+  /** Tätare rader för redigeringsvy m.m. */
+  density?: 'default' | 'compact'
 }
 
 export function ProductAttributesEditor({
   attributes,
   onChange,
   disabled,
+  density = 'default',
 }: Props) {
+  const compact = density === 'compact'
+  const gap = compact ? 'gap-2' : 'gap-3'
+  const stack = compact ? 'space-y-2' : 'space-y-3'
+  const rowPad = compact ? 'p-2' : 'p-3'
+  const typeRowClass = compact
+    ? 'flex flex-col gap-2 md:flex-row md:items-end md:justify-between md:gap-3'
+    : 'flex flex-col gap-2 sm:flex-row sm:items-start'
+
   const addRow = () => {
     onChange([...attributes, defaultAttrForRowKind('text:brand')])
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className={stack}>
+      <div className={`flex flex-wrap items-center justify-between ${gap}`}>
         <p className="text-sm font-medium text-brand-dark">Attribut</p>
         <button
           type="button"
@@ -127,7 +138,7 @@ export function ProductAttributesEditor({
         <p className="text-sm text-brand-dark/60">Inga attribut än.</p>
       ) : null}
 
-      <ul className="space-y-3">
+      <ul className={stack}>
         {attributes.map((attr, index) => {
           const kind = inferRowKind(attr)
           const setRow = (next: StoredProductAttribute) => {
@@ -140,9 +151,9 @@ export function ProductAttributesEditor({
           return (
             <li
               key={index}
-              className="rounded-lg border border-brand-dark/10 bg-white/80 p-3 shadow-sm"
+              className={`rounded-lg border border-brand-dark/10 bg-white/80 shadow-sm ${rowPad}`}
             >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+              <div className={typeRowClass}>
                 <label className="min-w-0 flex-1 text-xs text-brand-dark/70">
                   Typ
                   <select
@@ -173,7 +184,7 @@ export function ProductAttributesEditor({
                 </label>
                 <button
                   type="button"
-                  className="shrink-0 rounded-md border border-brand-dark/15 px-2 py-1 text-xs font-medium text-brand-dark/80 hover:bg-brand-dark/5 disabled:opacity-50 sm:mt-5"
+                  className={`shrink-0 rounded-md border border-brand-dark/15 px-2 py-1 text-xs font-medium text-brand-dark/80 hover:bg-brand-dark/5 disabled:opacity-50 ${compact ? 'md:mt-4' : 'sm:mt-5'}`}
                   disabled={disabled}
                   onClick={() => onChange(removeAt(attributes, index))}
                 >

@@ -15,18 +15,9 @@ import {
   DEMO_SHOWCASE_PRODUCT_ID,
   DEMO_SHOP_SLUG,
 } from '../../../shared/shopConstants'
+import { SelioLogoMark } from '~/components/SelioLogoMark'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
 import { defaultLoginSearch } from '~/lib/loginSearch'
-
-function LogoMark({ className }: { className?: string }) {
-  return (
-    <img
-      src="/logo.png"
-      alt="Selio logo"
-      className={className}
-    />
-  )
-}
 
 function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return (
@@ -44,8 +35,8 @@ function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-brand-dark/10 bg-brand-bg/90 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
-        <Link to="/" className="flex min-w-0 items-center gap-2.5">
-          <LogoMark className="size-8 shrink-0 text-brand-dark" />
+        <Link to="/" className="flex min-w-0 items-center gap-2">
+          <SelioLogoMark />
           <span className="font-heading text-lg font-bold tracking-tight text-brand-dark">
             Selio
           </span>
@@ -581,7 +572,7 @@ function Footer() {
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
-            <LogoMark className="size-8 shrink-0 text-brand-dark" />
+            <SelioLogoMark variant="compact" className="mt-0.5" />
             <div>
               <span className="font-heading text-base font-bold text-brand-dark">
                 Selio
