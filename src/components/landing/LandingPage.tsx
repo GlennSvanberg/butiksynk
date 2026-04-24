@@ -20,31 +20,11 @@ import { defaultLoginSearch } from '~/lib/loginSearch'
 
 function LogoMark({ className }: { className?: string }) {
   return (
-    <svg
+    <img
+      src="/logo.png"
+      alt="Selio logo"
       className={className}
-      viewBox="0 0 32 32"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden
-    >
-      <rect
-        x="2"
-        y="4"
-        width="28"
-        height="24"
-        rx="3"
-        className="stroke-brand-dark"
-        strokeWidth="2"
-        fill="var(--color-brand-surface)"
-      />
-      <path
-        d="M10 22V10l6 8 6-8v12"
-        className="stroke-brand-dark"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    />
   )
 }
 

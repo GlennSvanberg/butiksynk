@@ -92,10 +92,17 @@ export function AdminAppNav({
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Link
               to="/app"
-              className="font-heading text-lg font-bold tracking-tight text-brand-dark"
+              className="flex items-center gap-2"
               onClick={closeMobile}
             >
-              Selio
+              <img
+                src="/logo.png"
+                alt="Selio logo"
+                className="size-7 shrink-0"
+              />
+              <span className="font-heading text-lg font-bold tracking-tight text-brand-dark">
+                Selio
+              </span>
             </Link>
             <span className="hidden font-mono text-xs text-brand-dark/50 sm:inline">
               Admin
