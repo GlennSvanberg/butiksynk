@@ -5,20 +5,14 @@ import { Link, Outlet, createFileRoute, useNavigate } from '@tanstack/react-rout
 import { useConvexAuth } from 'convex/react'
 import * as React from 'react'
 import { api } from '../../../../convex/_generated/api'
-import type { CSSProperties } from 'react'
 import { AdminAppNav } from '~/components/AdminAppNav'
 import { defaultLoginSearch } from '~/lib/loginSearch'
 import { useShopSession } from '~/lib/shopSession'
+import { cssVarsFromStorefrontBranding } from '~/lib/storefrontTheme'
 
 export const Route = createFileRoute('/butik/$shopSlug')({
   component: ButikStorefrontLayout,
 })
-
-const defaultPrimary = '#1b3a29'
-const defaultAccent = '#c05746'
-const defaultBg = '#f9f8f6'
-const defaultSurface = '#ffffff'
-const defaultText = '#1a1a1a'
 
 function ButikStorefrontLayout() {
   const { shopSlug } = Route.useParams()
@@ -112,13 +106,7 @@ function ButikStorefrontLayout() {
     )
   }
 
-  const style: CSSProperties & Record<string, string> = {
-    '--sf-primary': branding.storefrontColorPrimary ?? defaultPrimary,
-    '--sf-accent': branding.storefrontColorAccent ?? defaultAccent,
-    '--sf-bg': branding.storefrontColorBackground ?? defaultBg,
-    '--sf-surface': branding.storefrontColorSurface ?? defaultSurface,
-    '--sf-text': defaultText,
-  }
+  const style = cssVarsFromStorefrontBranding(branding)
 
   const hasContact =
     !!(

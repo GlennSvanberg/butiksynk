@@ -6,8 +6,12 @@ import { api } from '../../../../convex/_generated/api'
 import type { Id } from '../../../../convex/_generated/dataModel'
 import type { TaxonomyTreeNode } from '~/components/TaxonomyTreePicker'
 import { TaxonomyTreePicker } from '~/components/TaxonomyTreePicker'
+import {
+  StorefrontCardSkeletons,
+  storefrontListingGridClass,
+} from '~/components/storefront/StorefrontCardSkeletons'
+import { StorefrontProductGrid } from '~/components/storefront/StorefrontProductGrid'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
-import { formatProductAttributeDisplay } from '~/lib/formatProductAttribute'
 
 export const Route = createFileRoute('/butik/$shopSlug/')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -23,12 +27,6 @@ export const Route = createFileRoute('/butik/$shopSlug/')({
   component: ButikShopHome,
 })
 
-const sekFormatter = new Intl.NumberFormat('sv-SE', {
-  style: 'currency',
-  currency: 'SEK',
-  maximumFractionDigits: 0,
-})
-
 function findCategoryName(
   nodes: Array<TaxonomyTreeNode>,
   id: string | undefined,
@@ -40,72 +38,6 @@ function findCategoryName(
     if (child) return child
   }
   return undefined
-}
-
-function StorefrontCardSkeletons({
-  hasCategoryNav,
-}: {
-  hasCategoryNav: boolean
-}) {
-  return (
-    <ul
-      className={
-        hasCategoryNav
-          ? 'grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3'
-          : 'grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3 2xl:grid-cols-4'
-      }
-      aria-label="Laddar varor"
-    >
-      {Array.from({ length: 8 }).map((_, i) => (
-        <li
-          key={i}
-          className="overflow-hidden rounded-2xl border border-[color:var(--sf-primary)]/8 bg-[var(--sf-surface)] shadow-sm"
-        >
-          <div className="aspect-[4/3] animate-pulse bg-[color:var(--sf-primary)]/8" />
-          <div className="space-y-3 p-4">
-            <div className="h-4 w-3/4 rounded bg-[color:var(--sf-primary)]/10" />
-            <div className="h-3 w-1/3 rounded bg-[color:var(--sf-primary)]/8" />
-            <div className="space-y-2 pt-2">
-              <div className="h-3 rounded bg-[color:var(--sf-primary)]/7" />
-              <div className="h-3 w-5/6 rounded bg-[color:var(--sf-primary)]/7" />
-            </div>
-          </div>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-function ProductCategoryRow({
-  product,
-}: {
-  product: {
-    categoryPathSegments?: Array<string>
-    category?: string
-  }
-}) {
-  const segments = Array.isArray(product.categoryPathSegments)
-    ? product.categoryPathSegments
-    : []
-  if (segments.length > 0) {
-    return (
-      <p className="truncate font-mono text-[0.68rem] uppercase tracking-wide text-[color:var(--sf-primary)]/50">
-        {segments.join(' / ')}
-      </p>
-    )
-  }
-  if (
-    'category' in product &&
-    typeof product.category === 'string' &&
-    product.category.length > 0
-  ) {
-    return (
-      <p className="truncate font-mono text-[0.68rem] uppercase tracking-wide text-[color:var(--sf-primary)]/50">
-        {product.category}
-      </p>
-    )
-  }
-  return null
 }
 
 function ButikShopHome() {
@@ -166,6 +98,7 @@ function ButikShopHome() {
   }
 
   const hasCategoryNav = categoryTree.length > 0
+  const listingGridClass = storefrontListingGridClass(hasCategoryNav)
   const selectedCategoryName = useMemo(
     () => findCategoryName(categoryTree, kategori),
     [categoryTree, kategori],
@@ -320,7 +253,10 @@ function ButikShopHome() {
             ) : null}
 
             {productsPending ? (
-              <StorefrontCardSkeletons hasCategoryNav={hasCategoryNav} />
+              <StorefrontCardSkeletons
+                hasCategoryNav={hasCategoryNav}
+                gridClassName={listingGridClass}
+              />
             ) : products.length === 0 ? (
               <div
                 className="rounded-2xl border border-dashed border-[color:var(--sf-primary)]/20 p-8 text-center shadow-sm sm:p-12"
@@ -349,94 +285,11 @@ function ButikShopHome() {
                 ) : null}
               </div>
             ) : (
-              <ul
-                className={
-                  hasCategoryNav
-                    ? 'grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3'
-                    : 'grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3 2xl:grid-cols-4'
-                }
-              >
-                {products.map((product) => (
-                  <li key={product._id}>
-                    <Link
-                      to="/butik/$shopSlug/vara/$productId"
-                      params={{ shopSlug, productId: product._id }}
-                      search={emptyButikListingSearch}
-                      className="group block h-full rounded-2xl border border-[color:var(--sf-primary)]/10 shadow-sm transition hover:-translate-y-0.5 hover:border-[color:var(--sf-primary)]/22 hover:shadow-md"
-                      style={{ backgroundColor: 'var(--sf-surface)' }}
-                    >
-                      <article className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl">
-                        <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-[var(--sf-bg)]">
-                          {product.imageUrl ? (
-                            <img
-                              src={product.imageUrl}
-                              alt={product.title}
-                              loading="lazy"
-                              decoding="async"
-                              className="absolute inset-0 size-full object-cover object-center transition duration-500 group-hover:scale-[1.025]"
-                            />
-                          ) : (
-                            <div className="absolute inset-0 flex items-center justify-center font-mono text-sm text-[color:var(--sf-primary)]/40">
-                              Ingen bild
-                            </div>
-                          )}
-                          <div className="absolute left-3 top-3 rounded-full border border-white/35 bg-[var(--sf-surface)]/88 px-2.5 py-1 font-mono text-[0.62rem] font-medium uppercase tracking-wide text-[color:var(--sf-primary)] shadow-sm backdrop-blur-sm">
-                            Tillgänglig
-                          </div>
-                        </div>
-                        <div className="flex flex-1 flex-col gap-2.5 p-4">
-                          <div className="space-y-1.5">
-                            <ProductCategoryRow product={product} />
-                            <div className="flex items-start justify-between gap-3">
-                              <h2 className="line-clamp-2 font-heading text-base font-semibold leading-snug text-[color:var(--sf-primary)]">
-                                {product.title}
-                              </h2>
-                              <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-[color:var(--sf-primary)]">
-                                {sekFormatter.format(product.priceSek)}
-                              </p>
-                            </div>
-                          </div>
-                          <p className="line-clamp-2 text-sm leading-relaxed text-[color:var(--sf-primary)]/75">
-                            {product.description}
-                          </p>
-                          {product.attributes.length > 0 ? (
-                            <dl className="mt-auto flex flex-wrap gap-1.5 border-t border-[color:var(--sf-primary)]/8 pt-3 text-[0.68rem]">
-                              {product.attributes.slice(0, 2).map((attr, i) => {
-                                const row = formatProductAttributeDisplay(attr)
-                                return (
-                                  <div
-                                    key={`${product._id}-${i}`}
-                                    className="rounded-full border border-[color:var(--sf-primary)]/10 bg-[var(--sf-bg)] px-2 py-0.5"
-                                  >
-                                    <dt className="sr-only">{row.label}</dt>
-                                    <dd className="font-medium text-[color:var(--sf-primary)]/78">
-                                      {row.value}
-                                    </dd>
-                                  </div>
-                                )
-                              })}
-                              {product.attributes.length > 2 ? (
-                                <div className="rounded-full border border-[color:var(--sf-primary)]/10 bg-[var(--sf-bg)] px-2 py-0.5 font-medium text-[color:var(--sf-primary)]/55">
-                                  +{product.attributes.length - 2}
-                                </div>
-                              ) : null}
-                            </dl>
-                          ) : null}
-                          <span className="pt-0.5 text-sm font-semibold text-[color:var(--sf-accent)]">
-                            Visa vara
-                            <span
-                              className="ml-1 inline-block transition group-hover:translate-x-0.5"
-                              aria-hidden
-                            >
-                              →
-                            </span>
-                          </span>
-                        </div>
-                      </article>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <StorefrontProductGrid
+                shopSlug={shopSlug}
+                products={products}
+                gridClassName={listingGridClass}
+              />
             )}
           </div>
         </div>

@@ -70,6 +70,10 @@ export default defineSchema({
       ),
     ),
     captureError: v.optional(v.string()),
+    /** Sätts när varan säljs; raden behålls för butikens historik och KPI:er. */
+    soldAt: v.optional(v.number()),
+    /** Pris vid försäljning om det skiljer sig från aktuellt listpris. */
+    soldPriceSek: v.optional(v.number()),
     /** Sätt vid mjuk borttagning; efter 14 dagar rensas raden hårt (se cron + `shared/retention.ts`). */
     deletedAt: v.optional(v.number()),
   })

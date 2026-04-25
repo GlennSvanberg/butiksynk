@@ -73,48 +73,6 @@ function Header() {
   )
 }
 
-const exampleButikPath = `/butik/${DEMO_SHOP_SLUG}/`
-
-function HeroExampleShop() {
-  return (
-    <div className="relative mt-10 lg:mt-0">
-      <div
-        className="absolute -inset-1 rounded-[1.35rem] bg-gradient-to-br from-brand-dark/12 via-transparent to-brand-accent/15 blur-xl"
-        aria-hidden
-      />
-      <div className="relative flex flex-col overflow-hidden rounded-2xl border border-brand-dark/12 bg-brand-surface shadow-[0_24px_48px_-12px_rgba(27,58,41,0.18)] ring-1 ring-black/[0.04]">
-        <div className="flex items-center gap-2 border-b border-brand-dark/8 bg-brand-bg/80 px-4 py-3">
-          <span className="size-2.5 rounded-full bg-brand-dark/15" aria-hidden />
-          <span className="size-2.5 rounded-full bg-brand-dark/10" aria-hidden />
-          <span className="size-2.5 rounded-full bg-brand-dark/8" aria-hidden />
-          <span className="ml-2 font-mono text-[10px] font-medium uppercase tracking-wider text-brand-dark/45">
-            {exampleButikPath}
-          </span>
-          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-status-success/25 bg-status-success/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-status-success">
-            <span className="relative flex size-1.5">
-              <span className="absolute inline-flex size-full animate-ping rounded-full bg-status-success/40 opacity-75" />
-              <span className="relative inline-flex size-1.5 rounded-full bg-status-success" />
-            </span>
-            Live
-          </span>
-        </div>
-        <div className="relative bg-brand-bg/40">
-          <iframe
-            title="Exempelbutikens publika lista"
-            src={exampleButikPath}
-            className="h-[min(56vh,580px)] w-full min-h-[320px] border-0 bg-white sm:min-h-[400px]"
-            loading="lazy"
-          />
-        </div>
-        <p className="border-t border-brand-dark/8 bg-brand-surface/95 px-3 py-2.5 text-center text-[11px] leading-snug text-brand-dark/60 sm:px-4 sm:text-xs">
-          Samma sida som kunder ser — faktiska varor i exempelbutiken, uppdaterat
-          när innehållet ändras.
-        </p>
-      </div>
-    </div>
-  )
-}
-
 function Hero() {
   return (
     <section
@@ -127,45 +85,40 @@ function Hero() {
       />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(249_248_246)_0%,rgb(249_248_246_/_0)_45%)]" />
       <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-12 sm:px-6 sm:pb-20 sm:pt-16 lg:pb-24 lg:pt-20">
-        <div className="grid items-start gap-12 lg:grid-cols-12 lg:gap-10">
-          <div className="lg:col-span-7">
-            <p className="mb-4 inline-flex items-center rounded-lg border border-brand-dark/12 bg-brand-surface/90 px-3 py-1.5 font-mono text-xs font-medium uppercase tracking-wider text-brand-dark/70 shadow-sm backdrop-blur-sm">
-              Från inlämning till kundbutik
-            </p>
-            <h1
-              id="hero-heading"
-              className="font-heading max-w-3xl text-4xl font-bold tracking-tight text-brand-dark sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]"
+        <div className="max-w-3xl">
+          <p className="mb-4 inline-flex items-center rounded-lg border border-brand-dark/12 bg-brand-surface/90 px-3 py-1.5 font-mono text-xs font-medium uppercase tracking-wider text-brand-dark/70 shadow-sm backdrop-blur-sm">
+            Från inlämning till kundbutik
+          </p>
+          <h1
+            id="hero-heading"
+            className="font-heading max-w-3xl text-4xl font-bold tracking-tight text-brand-dark sm:text-5xl lg:text-[3.25rem] lg:leading-[1.1]"
+          >
+            En digital tvilling som hänger med i{' '}
+            <span className="text-brand-dark">butiken — och på nätet.</span>
+          </h1>
+          <p className="mt-6 max-w-2xl text-lg text-brand-dark/75 sm:text-xl">
+            Samma unika plagg ska inte säljas två gånger. Selio håller
+            inlämning, lager och kundbutik i synk, med AI-stöd för titel, pris
+            och text. Alla ser samma status direkt när något sparas. Ekonomi
+            och externa försäljningskanaler byggs ut stegvis.
+          </p>
+          <div className="mt-10 flex flex-wrap items-center gap-3 sm:gap-4">
+            <a
+              href="#kontakt"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-dark px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-brand-dark/92"
             >
-              En digital tvilling som hänger med i{' '}
-              <span className="text-brand-dark">butiken — och på nätet.</span>
-            </h1>
-            <p className="mt-6 max-w-2xl text-lg text-brand-dark/75 sm:text-xl">
-              Samma unika plagg ska inte säljas två gånger. Selio håller
-              inlämning, lager och kundbutik i synk, med AI-stöd för titel, pris
-              och text. Alla ser samma status direkt när något sparas. Ekonomi
-              och externa försäljningskanaler byggs ut stegvis.
-            </p>
-            <div className="mt-10 flex flex-wrap items-center gap-3 sm:gap-4">
-              <a
-                href="#kontakt"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-dark px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-brand-dark/92"
-              >
-                Prata med oss
-                <ArrowRight className="size-4 opacity-90" aria-hidden />
-              </a>
-              <Link
-                to="/butik/$shopSlug"
-                params={{ shopSlug: DEMO_SHOP_SLUG }}
-                search={emptyButikListingSearch}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-brand-dark/18 bg-brand-surface px-5 py-3 text-sm font-semibold text-brand-dark shadow-sm transition hover:border-brand-dark/30 hover:shadow"
-              >
-                <Store className="size-4 text-brand-dark/70" aria-hidden />
-                Öppna exempelbutiken
-              </Link>
-            </div>
-          </div>
-          <div className="lg:col-span-5">
-            <HeroExampleShop />
+              Prata med oss
+              <ArrowRight className="size-4 opacity-90" aria-hidden />
+            </a>
+            <Link
+              to="/butik/$shopSlug"
+              params={{ shopSlug: DEMO_SHOP_SLUG }}
+              search={emptyButikListingSearch}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-brand-dark/18 bg-brand-surface px-5 py-3 text-sm font-semibold text-brand-dark shadow-sm transition hover:border-brand-dark/30 hover:shadow"
+            >
+              <Store className="size-4 text-brand-dark/70" aria-hidden />
+              Öppna exempelbutiken
+            </Link>
           </div>
         </div>
 
@@ -291,8 +244,8 @@ function SectionFromPhotoToShop() {
               Prova utan eget lager
             </p>
             <p className="mt-1.5 text-sm text-brand-dark/70">
-              Logga in med demot och gå till Ny vara, eller titta i
-              exempelbutiken ovanför.
+              Logga in med demot och gå till Ny vara, eller öppna exempelbutiken
+              via länken.
             </p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">

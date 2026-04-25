@@ -17,10 +17,10 @@ import {
   loadTaxonomyNodesByShop,
   pathSearchBlobFromTaxonomyMap,
   pathSegmentsFromTaxonomyMap,
-  type TaxonomyNodeByIdMap,
 } from "./taxonomy";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import type { TaxonomyNodeByIdMap } from "./taxonomy";
 
 async function resolveShopIdForWrite(
   ctx: Parameters<typeof requireShopMembership>[0],
@@ -84,9 +84,16 @@ function isActiveProduct(doc: Doc<"products">): boolean {
   return doc.deletedAt === undefined;
 }
 
+function isSoldProduct(doc: Doc<"products">): boolean {
+  return doc.soldAt !== undefined;
+}
+
 /** Publik butik: inte under AI-bearbetning eller fel, och inte borttagen. */
 function isPubliclyVisibleProduct(doc: Doc<"products">): boolean {
   if (!isActiveProduct(doc)) {
+    return false;
+  }
+  if (isSoldProduct(doc)) {
     return false;
   }
   if (doc.captureStatus === "processing" || doc.captureStatus === "error") {
@@ -331,6 +338,78 @@ export const updateProduct = mutation({
       attributes: args.attributes,
       imageStorageId,
     });
+  },
+});
+
+export const updateProductPrice = mutation({
+  args: {
+    productId: v.id("products"),
+    shopId: v.id("shops"),
+    priceSek: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
+    const existing = await requireActiveProductForShop(
+      ctx,
+      args.productId,
+      args.shopId,
+    );
+    if (existing.captureStatus === "processing") {
+      throw new Error("Vänta tills AI listan är klar innan du ändrar pris.");
+    }
+    if (!Number.isFinite(args.priceSek) || args.priceSek < 0) {
+      throw new Error("Ange ett giltigt pris.");
+    }
+    const priceSek = Math.round(args.priceSek);
+    const patch: {
+      priceSek: number;
+      soldPriceSek?: number;
+    } = { priceSek };
+    if (existing.soldAt !== undefined) {
+      patch.soldPriceSek = priceSek;
+    }
+    await ctx.db.patch("products", args.productId, patch);
+    return null;
+  },
+});
+
+export const markProductSold = mutation({
+  args: {
+    productId: v.id("products"),
+    shopId: v.id("shops"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
+    const existing = await requireActiveProductForShop(
+      ctx,
+      args.productId,
+      args.shopId,
+    );
+    const soldPriceSek = existing.soldPriceSek ?? existing.priceSek;
+    await ctx.db.patch("products", args.productId, {
+      soldAt: existing.soldAt ?? Date.now(),
+      soldPriceSek,
+    });
+    return null;
+  },
+});
+
+export const markProductAvailable = mutation({
+  args: {
+    productId: v.id("products"),
+    shopId: v.id("shops"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
+    await requireActiveProductForShop(ctx, args.productId, args.shopId);
+    await ctx.db.patch("products", args.productId, {
+      soldAt: undefined,
+      soldPriceSek: undefined,
+    });
+    return null;
   },
 });
 

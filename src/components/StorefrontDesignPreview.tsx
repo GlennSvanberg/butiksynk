@@ -1,15 +1,4 @@
-import type { CSSProperties } from 'react'
-
-const defaultPrimary = '#1b3a29'
-const defaultAccent = '#c05746'
-const defaultBg = '#f9f8f6'
-const defaultSurface = '#ffffff'
-const defaultText = '#1a1a1a'
-
-function pickColor(value: string, fallback: string) {
-  const t = value.trim()
-  return t || fallback
-}
+import { cssVarsFromStorefrontDraft } from '~/lib/storefrontTheme'
 
 export type StorefrontDesignPreviewProps = {
   internalName: string
@@ -41,13 +30,12 @@ export function StorefrontDesignPreview({
   colorSurface,
   logoUrl,
 }: StorefrontDesignPreviewProps) {
-  const style: CSSProperties & Record<string, string> = {
-    '--sf-primary': pickColor(colorPrimary, defaultPrimary),
-    '--sf-accent': pickColor(colorAccent, defaultAccent),
-    '--sf-bg': pickColor(colorBg, defaultBg),
-    '--sf-surface': pickColor(colorSurface, defaultSurface),
-    '--sf-text': defaultText,
-  }
+  const style = cssVarsFromStorefrontDraft({
+    colorPrimary,
+    colorAccent,
+    colorBg,
+    colorSurface,
+  })
 
   const displayName =
     storefrontDisplayName.trim() || internalName

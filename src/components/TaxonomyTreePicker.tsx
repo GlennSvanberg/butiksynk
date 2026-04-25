@@ -37,36 +37,53 @@ function TreeLevel({
     <ul
       className={
         depth === 0
-          ? 'space-y-0.5'
-          : 'mt-0.5 space-y-0.5 border-l border-current/12 pl-2.5'
+          ? 'space-y-1'
+          : 'mt-1 space-y-1 border-l border-brand-dark/15 pl-3'
       }
       role="group"
     >
-      {nodes.map((n) => (
-        <li key={n.id}>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(n.id)}
-            className={`w-full max-w-full rounded-md px-2 py-1.5 text-left text-sm transition ${
-              value === n.id
-                ? 'bg-current/12 font-semibold text-current'
-                : 'text-current/90 hover:bg-current/6'
-            }`}
-          >
-            {n.name}
-          </button>
-          {n.children.length > 0 ? (
-            <TreeLevel
-              nodes={n.children}
-              value={value}
-              onChange={onChange}
+      {nodes.map((n) => {
+        const active = value === n.id
+        return (
+          <li key={n.id}>
+            <button
+              type="button"
               disabled={disabled}
-              depth={depth + 1}
-            />
-          ) : null}
-        </li>
-      ))}
+              onClick={() => onChange(n.id)}
+              aria-pressed={active}
+              className={cn(
+                'group flex w-full max-w-full items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50',
+                active
+                  ? 'border-brand-dark bg-brand-dark font-semibold text-white shadow-sm'
+                  : 'border-transparent bg-white/65 text-brand-dark/85 hover:border-brand-dark/15 hover:bg-white',
+              )}
+            >
+              <span className="min-w-0 truncate">{n.name}</span>
+              {n.children.length > 0 ? (
+                <span
+                  className={cn(
+                    'shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[10px]',
+                    active
+                      ? 'bg-white/15 text-white/75'
+                      : 'bg-brand-dark/8 text-brand-dark/45 group-hover:text-brand-dark/70',
+                  )}
+                >
+                  {n.children.length}
+                </span>
+              ) : null}
+            </button>
+            {n.children.length > 0 ? (
+              <TreeLevel
+                nodes={n.children}
+                value={value}
+                onChange={onChange}
+                disabled={disabled}
+                depth={depth + 1}
+              />
+            ) : null}
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -99,7 +116,7 @@ export function TaxonomyTreePicker({
   return (
     <nav
       className={cn(
-        'max-h-72 overflow-y-auto rounded-lg border border-current/12 p-2',
+        'max-h-72 overflow-y-auto rounded-xl border border-brand-dark/12 p-2',
         className,
       )}
       aria-label="Kategorier"
@@ -109,17 +126,19 @@ export function TaxonomyTreePicker({
           type="button"
           disabled={disabled}
           onClick={() => onChange('')}
-          className={`mb-2 w-full rounded-md px-2 py-1.5 text-left text-sm ${
+          className={`mb-2 w-full rounded-lg border px-2.5 py-2 text-left text-sm ${
             value === ''
-              ? 'bg-current/12 font-semibold'
-              : 'text-current/80 hover:bg-current/6'
+              ? 'border-brand-dark bg-brand-dark font-semibold text-white'
+              : 'border-transparent bg-white/65 text-brand-dark/80 hover:border-brand-dark/15 hover:bg-white'
           }`}
         >
           {clearLabel}
         </button>
       ) : null}
       {nodes.length === 0 ? (
-        <p className="px-2 py-3 text-sm text-current/55">Inga kategorier ännu.</p>
+        <p className="px-2 py-3 text-sm text-current/55">
+          Inga kategorier ännu.
+        </p>
       ) : (
         <TreeLevel
           nodes={nodes}
