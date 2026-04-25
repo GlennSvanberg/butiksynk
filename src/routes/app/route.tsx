@@ -107,7 +107,6 @@ function AppShell() {
   return (
     <div className="min-h-dvh bg-brand-bg bg-paper-grain text-brand-text">
       <AdminAppNav
-        variant="app-shell"
         shopSlug={session.shopSlug}
         shopName={session.shopName}
         onLogout={onLogout}

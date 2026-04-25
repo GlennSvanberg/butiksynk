@@ -9,7 +9,7 @@ import {
 export const categoryResolutionAISchema = z.discriminatedUnion("mode", [
   z.object({
     mode: z.literal("existing"),
-    /** Full path from root to leaf, e.g. ["Sortiment","Kläder","Klänningar"] */
+    /** Visible path from parent to leaf, e.g. ["Kläder","Jackor"]. */
     path: z.array(z.string()).min(1).max(12),
   }),
   z.object({

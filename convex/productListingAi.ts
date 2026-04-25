@@ -10,6 +10,7 @@ import {
   CONDITION_LABEL_SV,
   PRODUCT_ATTRIBUTE_KEYS,
 } from "../shared/attributes";
+import { normalizeListingPriceSek } from "../shared/listingPrice";
 import { productImageVerdictSchema } from "../shared/productImageQaSchema";
 import { productListingAISchema } from "../shared/productAiSchema";
 import { normalizeAiAttributes } from "./lib/normalizeAiAttributes";
@@ -318,8 +319,8 @@ async function runOpenAIListing(
 
   const taxonomyBlock =
     taxonomySnapshot.trim().length > 0
-      ? `\nBefintlig kategoriträd (välj exakt path i läget existing, eller new_leaf för ny undernod):\n${taxonomySnapshot}\n`
-      : "\n(Inget kategoriträd finns än — använd new_leaf under tomt föräldravärde eller existing med path [\"Sortiment\"] efter seed.)\n";
+      ? `\nBefintligt kategoriträd (välj exakt path i läget existing, eller new_leaf för ny undernod):\n${taxonomySnapshot}\n`
+      : "\n(Inga kategorier finns än — använd new_leaf med tom parentPath och ett konkret suggestedNameSv.)\n";
 
   const completion = await openai.beta.chat.completions.parse({
     model: OPENAI_LISTING_MODEL,
@@ -329,12 +330,16 @@ async function runOpenAIListing(
         role: "system",
         content:
           "Du hjälper svenska vintage- och second hand-butiker. Alla texter ska vara på svenska. " +
-          "Priset priceSek är ett heltal i svenska kronor, rimligt för begagnat. " +
-          "Kategori: ange categoryResolution.mode existing med path-array som matchar ett befintligt spår ordagrant, " +
-          "eller mode new_leaf med parentPath (oftast [\"Sortiment\"]) och suggestedNameSv om ingen nod passar. " +
-          "Välj aldrig generiska fångstkategorier som \"Övrigt\", \"Diverse\" eller liknande — skapa i stället new_leaf med ett beskrivande svenskt namn " +
+          "Identifiera först internt exakt vilken vara bilden visar: produkttyp, användning och kategori. " +
+          "Om närliggande produkttyper är möjliga, välj den som bäst matchar helheten och skriv inte ut osäkerhet. " +
+          "Titel och beskrivning ska vara tydliga produkttexter med självförtroende, inte bildanalys. " +
+          "Undvik formuleringar som \"på bilden\", \"ser ut\", \"verkar\", \"troligen\", \"kanske\" och liknande tveksamheter. " +
+          "Priset priceSek är ett heltal i svenska kronor, rimligt för begagnat. Använd runda, enkla priser som 50, 200 eller 1000; använd inte priser som slutar på 9, t.ex. 49 eller 199. " +
+          "Kategori: ange categoryResolution.mode existing med path-array som matchar ett befintligt spår ordagrant utan teknisk rotnod, " +
+          "eller mode new_leaf med parentPath till konkret förälder (t.ex. [\"Kläder\"]) och suggestedNameSv om ingen nod passar. " +
+          "Välj aldrig generiska fångstkategorier som \"Sortiment\", \"Övrigt\", \"Diverse\" eller liknande — skapa i stället new_leaf med ett beskrivande svenskt namn " +
           "(t.ex. produkttyp: \"Brädspel\", \"Pussel\", \"Barnböcker\"). " +
-          "Använd inte kategorier som \"Importerade\" (är föråldrade) — välj sortimentsgren eller new_leaf. " +
+          "Använd inte kategorier som \"Importerade\" (är föråldrade) — välj en konkret kategori eller new_leaf. " +
           "Undvik överlapp — välj mest specifika befintliga bladnod om den verkligen stämmer." +
           taxonomyBlock +
           `\nTillåtna attributnycklar (key): ${allowedKeys}. Skick (condition) ska som enumKey vara ett av: ${conditionHints}. ` +
@@ -352,7 +357,7 @@ async function runOpenAIListing(
           {
             type: "text",
             text:
-              "Analysera fotot och fyll i produktdata för en annons. Beskrivning ska vara säljande men ärlig om skick." +
+              "Analysera fotot, avgör först vilken vara det är, och fyll i produktdata för en annons. Beskrivningen ska vara säljande, ärlig om skick och skriven utan tveksamma bildformuleringar." +
               (userContext ? `\n\nExtrainfo från användaren: ${userContext}` : ""),
           },
         ],
@@ -449,10 +454,7 @@ export const runPipeline = internalAction({
         return;
       }
 
-      const priceSek = Math.max(
-        1,
-        Math.min(1_000_000, Math.round(Math.abs(revalidate.data.priceSek))),
-      );
+      const priceSek = normalizeListingPriceSek(revalidate.data.priceSek);
 
       const resolved = await ctx.runMutation(
         internal.taxonomy.resolveCategoryProposal,

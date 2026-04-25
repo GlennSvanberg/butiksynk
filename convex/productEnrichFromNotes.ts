@@ -8,6 +8,7 @@ import {
   CONDITION_LABEL_SV,
   PRODUCT_ATTRIBUTE_KEYS,
 } from "../shared/attributes";
+import { normalizeListingPriceSek } from "../shared/listingPrice";
 import { productListingAISchema } from "../shared/productAiSchema";
 import { api, internal } from "./_generated/api";
 import { action } from "./_generated/server";
@@ -17,6 +18,14 @@ import type { ProductAttribute } from "./lib/productAttributes";
 
 const OPENAI_LISTING_MODEL = "gpt-5.4-mini";
 const OPENAI_LISTING_REASONING_EFFORT = "low" as const;
+const ROOT_CATEGORY_NAME = "Sortiment";
+
+function categoryPathForAi(segments: Array<string>): Array<string> {
+  if (segments[0]?.trim().toLocaleLowerCase("sv") === ROOT_CATEGORY_NAME.toLocaleLowerCase("sv")) {
+    return segments.slice(1);
+  }
+  return segments;
+}
 
 export const enrichProductFromNotes = action({
   args: {
@@ -68,14 +77,14 @@ export const enrichProductFromNotes = action({
 
     const taxonomyBlock =
       taxonomySnapshot.trim().length > 0
-        ? `\nBefintlig kategoriträd (välj exakt path i läget existing, eller new_leaf för ny undernod):\n${taxonomySnapshot}\n`
-        : "\n(Inget kategoriträd finns än — använd new_leaf under tomt föräldravärde eller existing med path [\"Sortiment\"] efter seed.)\n";
+        ? `\nBefintligt kategoriträd (välj exakt path i läget existing, eller new_leaf för ny undernod):\n${taxonomySnapshot}\n`
+        : "\n(Inga kategorier finns än — använd new_leaf med tom parentPath och ett konkret suggestedNameSv.)\n";
 
     const currentPayload = {
       title: product.title,
       description: product.description,
       priceSek: product.priceSek,
-      categoryPathSegments: product.categoryPathSegments,
+      categoryPathSegments: categoryPathForAi(product.categoryPathSegments),
       categoryId: product.categoryId,
       attributes: product.attributes,
     };
@@ -94,11 +103,15 @@ export const enrichProductFromNotes = action({
             "Du får nuvarande produktdata (JSON) plus användarens fria instruktioner. " +
             "Uppdatera listan enligt instruktionerna: ändra bara det som instruktionerna berör eller som rimligen följer av dem; " +
             "behåll i övrigt samma innehåll och ton som i nuvarande data om inget annat anges. " +
-            "Priset priceSek är ett heltal i svenska kronor. " +
-            "Kategori: ange categoryResolution.mode existing med path-array som matchar ett befintligt spår ordagrant, " +
-            "eller mode new_leaf med parentPath och suggestedNameSv om ingen nod passar. " +
-            "Välj aldrig generiska fångstkategorier som \"Övrigt\", \"Diverse\" eller liknande — skapa i stället new_leaf med ett beskrivande svenskt namn. " +
-            "Använd inte kategorier som \"Importerade\" — välj sortimentsgren eller new_leaf. " +
+            "Identifiera först internt exakt vilken vara produktdatan och instruktionerna beskriver: produkttyp, användning och kategori. " +
+            "Om närliggande produkttyper är möjliga, välj den som bäst matchar helheten och skriv inte ut osäkerhet. " +
+            "Titel och beskrivning ska vara tydliga produkttexter med självförtroende, inte bildanalys. " +
+            "Undvik formuleringar som \"på bilden\", \"ser ut\", \"verkar\", \"troligen\", \"kanske\" och liknande tveksamheter. " +
+            "Priset priceSek är ett heltal i svenska kronor. Använd runda, enkla priser som 50, 200 eller 1000; använd inte priser som slutar på 9, t.ex. 49 eller 199. " +
+            "Kategori: ange categoryResolution.mode existing med path-array som matchar ett befintligt spår ordagrant utan teknisk rotnod, " +
+            "eller mode new_leaf med parentPath till konkret förälder (t.ex. [\"Kläder\"]) och suggestedNameSv om ingen nod passar. " +
+            "Välj aldrig generiska fångstkategorier som \"Sortiment\", \"Övrigt\", \"Diverse\" eller liknande — skapa i stället new_leaf med ett beskrivande svenskt namn. " +
+            "Använd inte kategorier som \"Importerade\" — välj en konkret kategori eller new_leaf. " +
             taxonomyBlock +
             `\nTillåtna attributnycklar (key): ${allowedKeys}. Skick (condition) ska som enumKey vara ett av: ${conditionHints}. ` +
             `Numeriska attribut använder type "number", value är tal, och unit är valfri (${units}). ` +
@@ -133,10 +146,7 @@ export const enrichProductFromNotes = action({
       throw new Error("AI-metadata var ogiltig.");
     }
 
-    const priceSek = Math.max(
-      1,
-      Math.min(1_000_000, Math.round(Math.abs(revalidate.data.priceSek))),
-    );
+    const priceSek = normalizeListingPriceSek(revalidate.data.priceSek);
 
     const resolved: { categoryId: Id<"taxonomyNodes"> } =
       await ctx.runMutation(internal.taxonomy.resolveCategoryProposal, {

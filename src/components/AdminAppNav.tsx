@@ -3,14 +3,11 @@ import { Menu, X } from 'lucide-react'
 import * as React from 'react'
 import { SelioLogoMark } from '~/components/SelioLogoMark'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
-import { cn } from '~/lib/utils'
 
 export type AdminAppNavProps = {
   shopSlug: string
   shopName: string | null
   onLogout: () => void
-  /** Same chrome as `/app`; `storefront` is the slim strip on kundbutik when you own the shop. */
-  variant: 'app-shell' | 'storefront'
 }
 
 const navLinkClass =
@@ -20,7 +17,6 @@ export function AdminAppNav({
   shopSlug,
   shopName,
   onLogout,
-  variant,
 }: AdminAppNavProps) {
   const [mobileOpen, setMobileOpen] = React.useState(false)
   const pathname = useRouterState({ select: (s) => s.location.pathname })
@@ -68,12 +64,7 @@ export function AdminAppNav({
   )
 
   return (
-    <header
-      className={cn(
-        'sticky top-0 z-50 border-b border-brand-dark/10 bg-brand-bg/95 backdrop-blur-md',
-        variant === 'storefront' && 'border-b-brand-dark/15',
-      )}
-    >
+    <header className="sticky top-0 z-50 border-b border-brand-dark/10 bg-brand-bg/95 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:h-16 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <button

@@ -2,6 +2,14 @@ import { Link, createFileRoute } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMutation } from 'convex/react'
 import { convexQuery } from '@convex-dev/react-query'
+import {
+  Check,
+  LayoutGrid,
+  Pencil,
+  Table2,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
@@ -386,8 +394,8 @@ export function AdminDashboard() {
     const isBusy = busyProductId === product._id
     if (isEditing) {
       return (
-        <div className="min-w-36 space-y-1.5">
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="min-w-0">
+          <div className="flex flex-nowrap items-center gap-1.5">
             <input
               value={priceDraft}
               onChange={(event) =>
@@ -401,7 +409,7 @@ export function AdminDashboard() {
                   cancelPriceEdit()
                 }
               }}
-              className="w-24 rounded-lg border border-brand-dark/20 bg-white px-2 py-1.5 font-mono text-sm tabular-nums text-brand-dark outline-none transition focus:border-brand-dark"
+              className="h-8 w-24 shrink-0 rounded-lg border border-brand-dark/20 bg-white px-2 font-mono text-sm tabular-nums text-brand-dark outline-none transition focus:border-brand-dark"
               inputMode="decimal"
               aria-label={`Pris för ${product.title}`}
               disabled={isBusy}
@@ -410,21 +418,27 @@ export function AdminDashboard() {
               type="button"
               onClick={() => void savePrice(product)}
               disabled={isBusy}
-              className="rounded-lg bg-brand-dark px-2 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-dark/90 disabled:opacity-50"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-dark text-white transition hover:bg-brand-dark/90 disabled:opacity-50"
+              aria-label="Spara pris"
+              title="Spara"
             >
-              Spara
+              <Check className="size-4" aria-hidden />
             </button>
             <button
               type="button"
               onClick={cancelPriceEdit}
               disabled={isBusy}
-              className="rounded-lg px-2 py-1.5 text-xs font-semibold text-brand-dark/70 transition hover:bg-brand-dark/5"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-brand-dark/15 text-brand-dark/70 transition hover:bg-brand-dark/5 hover:text-brand-dark disabled:opacity-50"
+              aria-label="Avbryt"
+              title="Avbryt"
             >
-              Avbryt
+              <X className="size-4" aria-hidden />
             </button>
           </div>
           {priceError ? (
-            <p className="text-xs font-medium text-brand-accent">{priceError}</p>
+            <p className="mt-1 text-xs font-medium text-brand-accent">
+              {priceError}
+            </p>
           ) : null}
         </div>
       )
@@ -447,45 +461,86 @@ export function AdminDashboard() {
     )
   }
 
+  const statusFlowActions = (
+    product: AdminProduct,
+    textAlign: 'start' | 'end' = 'start',
+  ) => {
+    const isBusy = busyProductId === product._id
+    const processing = product.captureStatus === 'processing'
+    const align =
+      textAlign === 'end' ? 'text-end' : 'text-start'
+    return productIsSold(product) ? (
+      <button
+        type="button"
+        onClick={() => void restoreAvailable(product)}
+        disabled={isBusy}
+        className={`${align} text-xs font-medium text-brand-dark/70 underline decoration-brand-dark/30 underline-offset-2 transition hover:text-brand-dark hover:decoration-brand-dark/60 disabled:opacity-50`}
+      >
+        Åter till salu
+      </button>
+    ) : (
+      <button
+        type="button"
+        onClick={() => void askMarkSold(product)}
+        disabled={isBusy || processing}
+        title={
+          processing
+            ? 'Vänta tills AI-listan är klar.'
+            : 'Flyttar varan till såld och döljer den i kundbutiken.'
+        }
+        className={`${align} text-xs font-medium text-brand-dark/70 underline decoration-brand-dark/30 underline-offset-2 transition hover:text-brand-dark hover:decoration-brand-dark/60 disabled:cursor-not-allowed disabled:opacity-50`}
+      >
+        Markera som såld
+      </button>
+    )
+  }
+
+  const statusColumn = (
+    product: AdminProduct,
+    layout: 'default' | 'narrowEnd' = 'default',
+  ) => {
+    const end = layout === 'narrowEnd'
+    return (
+      <div
+        className={`max-w-[14rem] space-y-2 ${end ? 'ml-auto flex flex-col items-end' : ''}`}
+      >
+        <ProductStatusBadge product={product} />
+        {product.captureError ? (
+          <p
+            className={`text-xs text-brand-accent ${end ? 'text-end' : ''}`}
+          >
+            {product.captureError}
+          </p>
+        ) : null}
+        {statusFlowActions(product, end ? 'end' : 'start')}
+      </div>
+    )
+  }
+
   const actionButtons = (product: AdminProduct) => {
     const isBusy = busyProductId === product._id
     return (
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-nowrap items-center justify-end gap-1.5">
         <Link
           to="/app/varor/$productId/redigera"
           params={{ productId: product._id }}
-          className="rounded-lg border border-brand-dark/15 bg-white px-2.5 py-1.5 text-xs font-semibold text-brand-dark transition hover:border-brand-dark/35"
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-brand-dark/15 bg-white text-brand-dark transition hover:border-brand-dark/35"
+          aria-label="Redigera"
+          title="Redigera"
         >
-          Redigera
+          <Pencil className="size-4" aria-hidden />
         </Link>
-        {productIsSold(product) ? (
-          <button
-            type="button"
-            onClick={() => void restoreAvailable(product)}
-            disabled={isBusy}
-            className="rounded-lg border border-brand-dark/15 bg-white px-2.5 py-1.5 text-xs font-semibold text-brand-dark transition hover:border-brand-dark/35 disabled:opacity-50"
-          >
-            Till salu
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void askMarkSold(product)}
-            disabled={isBusy}
-            className="rounded-lg border border-brand-accent/25 bg-brand-accent/10 px-2.5 py-1.5 text-xs font-semibold text-brand-accent transition hover:bg-brand-accent/15 disabled:opacity-50"
-          >
-            Markera såld
-          </button>
-        )}
         <button
           type="button"
           disabled={isBusy}
-          className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-brand-dark/55 transition hover:bg-brand-dark/5 hover:text-brand-accent disabled:opacity-50"
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-brand-accent/45 bg-brand-accent/15 text-brand-accent transition hover:border-brand-accent hover:bg-brand-accent/25 disabled:opacity-50"
+          aria-label="Ta bort"
+          title="Ta bort"
           onClick={() => {
             void askRemove(product._id, cleanProductTitle(product.title))
           }}
         >
-          Ta bort
+          <Trash2 className="size-4" aria-hidden />
         </button>
       </div>
     )
@@ -635,28 +690,36 @@ export function AdminDashboard() {
                 <option value="priceAsc">Lägst pris</option>
                 <option value="title">Namn A-Ö</option>
               </select>
-              <div className="flex rounded-lg border border-brand-dark/15 bg-brand-bg p-1">
+              <div
+                className="flex rounded-lg border border-brand-dark/15 bg-brand-bg p-1"
+                role="group"
+                aria-label="Vy"
+              >
                 <button
                   type="button"
                   onClick={() => setView('table')}
-                  className={`flex-1 rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                  className={`inline-flex size-9 items-center justify-center rounded-md transition ${
                     view === 'table'
                       ? 'bg-brand-surface text-brand-dark shadow-sm'
                       : 'text-brand-dark/60 hover:text-brand-dark'
                   }`}
+                  aria-label="Tabellvy"
+                  title="Tabell"
                 >
-                  Tabell
+                  <Table2 className="size-4" aria-hidden />
                 </button>
                 <button
                   type="button"
                   onClick={() => setView('grid')}
-                  className={`flex-1 rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                  className={`inline-flex size-9 items-center justify-center rounded-md transition ${
                     view === 'grid'
                       ? 'bg-brand-surface text-brand-dark shadow-sm'
                       : 'text-brand-dark/60 hover:text-brand-dark'
                   }`}
+                  aria-label="Rutnätsvy"
+                  title="Rutnät"
                 >
-                  Rutnät
+                  <LayoutGrid className="size-4" aria-hidden />
                 </button>
               </div>
             </div>
@@ -708,7 +771,7 @@ export function AdminDashboard() {
                 </thead>
                 <tbody className="divide-y divide-brand-dark/8">
                   {visibleProducts.map((product) => (
-                    <tr key={product._id} className="align-top">
+                    <tr key={product._id} className="align-middle">
                       <td className="px-4 py-3">
                         <div className="flex min-w-72 items-center gap-3">
                           <div className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-brand-bg">
@@ -734,14 +797,7 @@ export function AdminDashboard() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
-                        <ProductStatusBadge product={product} />
-                        {product.captureError ? (
-                          <p className="mt-1 max-w-36 text-xs text-brand-accent">
-                            {product.captureError}
-                          </p>
-                        ) : null}
-                      </td>
+                      <td className="px-4 py-3">{statusColumn(product)}</td>
                       <td className="px-4 py-3">{priceCell(product)}</td>
                       <td className="px-4 py-3 text-sm text-brand-dark/65">
                         <AdminProductCategoryRow product={product} />
@@ -776,11 +832,13 @@ export function AdminDashboard() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <h3 className="font-heading text-sm font-semibold leading-snug text-brand-dark">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <h3 className="min-w-0 flex-1 font-heading text-sm font-semibold leading-snug text-brand-dark">
                           {product.title}
                         </h3>
-                        <ProductStatusBadge product={product} />
+                        <div className="shrink-0">
+                          {statusColumn(product, 'narrowEnd')}
+                        </div>
                       </div>
                       <div className="mt-2">{priceCell(product)}</div>
                       <div className="mt-2">
@@ -810,7 +868,7 @@ export function AdminDashboard() {
                         Ingen bild
                       </div>
                     )}
-                    <div className="absolute left-2 top-2">
+                    <div className="absolute left-2 top-2 max-w-[calc(100%-1rem)]">
                       <ProductStatusBadge product={product} />
                     </div>
                   </div>
@@ -825,6 +883,14 @@ export function AdminDashboard() {
                     <p className="line-clamp-2 text-xs leading-relaxed text-brand-dark/65">
                       {productSummary(product)}
                     </p>
+                    <div className="space-y-2 border-t border-brand-dark/8 pt-2">
+                      {product.captureError ? (
+                        <p className="text-xs text-brand-accent">
+                          {product.captureError}
+                        </p>
+                      ) : null}
+                      {statusFlowActions(product)}
+                    </div>
                     <div className="mt-auto pt-1">{actionButtons(product)}</div>
                   </div>
                 </article>

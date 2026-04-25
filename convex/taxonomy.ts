@@ -80,6 +80,30 @@ function matchSegment(
   );
 }
 
+function isRootSegment(segment: string): boolean {
+  const trimmed = segment.trim();
+  return (
+    trimmed.toLocaleLowerCase("sv") === ROOT_NAME.toLocaleLowerCase("sv") ||
+    slugifyTaxonomySegment(trimmed) === ROOT_SLUG
+  );
+}
+
+function isRootNode(node: Doc<"taxonomyNodes">): boolean {
+  return node.parentId === null && (node.slug === ROOT_SLUG || isRootSegment(node.name));
+}
+
+function cleanPathSegments(segments: Array<string>): Array<string> {
+  return segments.map((s) => s.trim()).filter(Boolean);
+}
+
+function withRootSegment(segments: Array<string>): Array<string> {
+  const cleaned = cleanPathSegments(segments);
+  if (cleaned.length === 0 || isRootSegment(cleaned[0])) {
+    return cleaned;
+  }
+  return [ROOT_NAME, ...cleaned];
+}
+
 async function walkExistingPath(
   ctx: { db: QueryCtx["db"] },
   shopId: Id<"shops">,
@@ -296,7 +320,7 @@ export async function findOrCreateLeafUnderSortiment(
   });
 }
 
-/** Builds multi-line snapshot for LLM: one full path per line using " > ". */
+/** Builds multi-line snapshot for LLM: one visible path per line using " > ". */
 export const getTaxonomySnapshotForAi = internalQuery({
   args: { shopId: v.id("shops") },
   handler: async (ctx, args) => {
@@ -310,13 +334,20 @@ export const getTaxonomySnapshotForAi = internalQuery({
     const byId = new Map(nodes.map((n) => [n._id, n] as const));
     const lines: Array<string> = [];
     for (const n of nodes) {
-      const parts: Array<string> = [];
+      const parts: Array<Doc<"taxonomyNodes">> = [];
       let cur: Doc<"taxonomyNodes"> | undefined = n;
       while (cur) {
-        parts.push(`${cur.name} [${cur.slug}]`);
+        parts.push(cur);
         cur = cur.parentId ? byId.get(cur.parentId) : undefined;
       }
-      lines.push(parts.reverse().join(" > "));
+      const visibleParts = parts.reverse();
+      if (visibleParts[0] && isRootNode(visibleParts[0])) {
+        visibleParts.shift();
+      }
+      if (visibleParts.length === 0) {
+        continue;
+      }
+      lines.push(visibleParts.map((part) => `${part.name} [${part.slug}]`).join(" > "));
     }
     lines.sort();
     return lines.join("\n");
@@ -334,7 +365,7 @@ export const resolveCategoryProposal = internalMutation({
     await ensureRootStructure(ctx, args.shopId);
 
     if (args.categoryResolution.mode === "existing") {
-      const segments = args.categoryResolution.path.map((s) => s.trim()).filter(Boolean);
+      const segments = withRootSegment(args.categoryResolution.path);
       if (segments.length === 0) {
         const id = await createAutoLeafUnderSortiment(
           ctx,
@@ -355,9 +386,7 @@ export const resolveCategoryProposal = internalMutation({
       return { categoryId: autoId };
     }
 
-    const parentSegments = args.categoryResolution.parentPath
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const parentSegments = withRootSegment(args.categoryResolution.parentPath);
     let parentId: Id<"taxonomyNodes"> | null =
       parentSegments.length === 0
         ? (await ensureRootStructure(ctx, args.shopId)).rootId

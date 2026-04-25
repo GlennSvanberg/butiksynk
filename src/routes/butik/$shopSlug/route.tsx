@@ -5,7 +5,7 @@ import { Link, Outlet, createFileRoute, useNavigate } from '@tanstack/react-rout
 import { useConvexAuth } from 'convex/react'
 import * as React from 'react'
 import { api } from '../../../../convex/_generated/api'
-import { AdminAppNav } from '~/components/AdminAppNav'
+import { StorefrontOwnerBar } from '~/components/StorefrontOwnerBar'
 import { defaultLoginSearch } from '~/lib/loginSearch'
 import { useShopSession } from '~/lib/shopSession'
 import { cssVarsFromStorefrontBranding } from '~/lib/storefrontTheme'
@@ -48,7 +48,7 @@ function ButikStorefrontLayout() {
     }
   }, [myShopForSlug, session, setSession])
 
-  const showOwnerAdminNav =
+  const showOwnerBar =
     isAuthenticated &&
     !authLoading &&
     !myShopsPending &&
@@ -121,10 +121,8 @@ function ButikStorefrontLayout() {
       className="flex min-h-dvh flex-col bg-paper-grain font-sans text-[var(--sf-text)]"
       style={{ ...style, backgroundColor: 'var(--sf-bg)' }}
     >
-      {showOwnerAdminNav ? (
-        <AdminAppNav
-          variant="storefront"
-          shopSlug={shopSlug}
+      {showOwnerBar ? (
+        <StorefrontOwnerBar
           shopName={adminNavShopName}
           onLogout={onLogout}
         />
@@ -156,7 +154,7 @@ function ButikStorefrontLayout() {
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            {!showOwnerAdminNav ? (
+            {!showOwnerBar ? (
               <Link
                 to="/login"
                 search={{ ...defaultLoginSearch, redirect: '/app/varor/ny' }}
