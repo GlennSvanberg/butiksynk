@@ -641,13 +641,36 @@ export const getProductForPipeline = internalQuery({
   },
 });
 
-/** Listningstext under pågående capture; sätter captureListingReady. Returnerar om patch kördes. */
+/** Prisförslag under pågående capture; sätter inte captureListingReady. Returnerar om patch kördes. */
+export const applyAiListingPriceOnly = internalMutation({
+  args: {
+    productId: v.id("products"),
+    priceSek: v.number(),
+    expectedUserContextEpoch: v.number(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const doc = await ctx.db.get("products", args.productId);
+    if (!doc || doc.deletedAt !== undefined || doc.captureStatus !== "processing") {
+      return false;
+    }
+    const epoch = doc.userContextEpoch ?? 0;
+    if (epoch !== args.expectedUserContextEpoch) {
+      return false;
+    }
+    await ctx.db.patch("products", args.productId, {
+      priceSek: args.priceSek,
+    });
+    return true;
+  },
+});
+
+/** Listningstext under pågående capture; sätter captureListingReady. Pris patchas separat. Returnerar om patch kördes. */
 export const applyAiListingTextOnly = internalMutation({
   args: {
     productId: v.id("products"),
     title: v.string(),
     description: v.string(),
-    priceSek: v.number(),
     categoryId: v.id("taxonomyNodes"),
     attributes: v.array(productAttributeValidator),
     expectedUserContextEpoch: v.number(),
@@ -665,7 +688,6 @@ export const applyAiListingTextOnly = internalMutation({
     await ctx.db.patch("products", args.productId, {
       title: args.title,
       description: args.description,
-      priceSek: args.priceSek,
       categoryId: args.categoryId,
       attributes: args.attributes,
       category: undefined,

@@ -12,13 +12,20 @@ import {
 } from "../shared/attributes";
 import { normalizeListingPriceSek } from "../shared/listingPrice";
 import { productImageVerdictSchema } from "../shared/productImageQaSchema";
-import { productListingAISchema } from "../shared/productAiSchema";
+import {
+  productListingBodyAISchema,
+  productPriceAISchema,
+} from "../shared/productAiSchema";
 import { normalizeAiAttributes } from "./lib/normalizeAiAttributes";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import type { ProductListingAI } from "../shared/productAiSchema";
 import type { ProductImageQaVerdict } from "../shared/productImageQaSchema";
+
+/** Pris-patch avvisad p.g.a. ny userContext-epok — pipelinen ska hämta färskt läge och försöka igen. */
+class ListingEpochStale extends Error {
+  override readonly name = "ListingEpochStale";
+}
 
 /** Vision + structured listing (svensk copy, kategori, pris). */
 const OPENAI_LISTING_MODEL = "gpt-5.4-mini";
@@ -303,13 +310,52 @@ async function runGeminiProductImage(
   return bufferFromGeminiResponse(json);
 }
 
-async function runOpenAIListing(
+async function runOpenAIPriceSek(
+  openai: OpenAI,
+  base64: string,
+  mimeType: string,
+  userContext?: string,
+): Promise<unknown> {
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+  const completion = await openai.beta.chat.completions.parse({
+    model: OPENAI_LISTING_MODEL,
+    reasoning_effort: OPENAI_LISTING_REASONING_EFFORT,
+    messages: [
+      {
+        role: "system",
+        content:
+          "Du hjälper svenska vintage- och second hand-butiker. Avgör från fotot vilket rimligt begagnatpris varan bör ha i svenska kronor. " +
+          "priceSek är ett heltal, rimligt för begagnat. Använd runda, enkla priser som 50, 200 eller 1000; använd inte priser som slutar på 9, t.ex. 49 eller 199.",
+      },
+      {
+        role: "user",
+        content: [
+          { type: "image_url", image_url: { url: dataUrl } },
+          {
+            type: "text",
+            text:
+              "Vilket pris (SEK, heltal) passar varan på bilden?" +
+              (userContext ? `\n\nExtrainfo från användaren: ${userContext}` : ""),
+          },
+        ],
+      },
+    ],
+    response_format: zodResponseFormat(productPriceAISchema, "product_price"),
+  });
+  const parsed = completion.choices[0]?.message?.parsed;
+  if (!parsed) {
+    throw new Error("OpenAI returnerade inget prisförslag.");
+  }
+  return parsed;
+}
+
+async function runOpenAIListingBody(
   openai: OpenAI,
   base64: string,
   mimeType: string,
   taxonomySnapshot: string,
   userContext?: string,
-): Promise<ProductListingAI> {
+): Promise<unknown> {
   const dataUrl = `data:${mimeType};base64,${base64}`;
   const allowedKeys = PRODUCT_ATTRIBUTE_KEYS.join(", ");
   const units = COMMON_UNITS.join(", ");
@@ -334,9 +380,9 @@ async function runOpenAIListing(
           "Om närliggande produkttyper är möjliga, välj den som bäst matchar helheten och skriv inte ut osäkerhet. " +
           "Titel och beskrivning ska vara tydliga produkttexter med självförtroende, inte bildanalys. " +
           "Undvik formuleringar som \"på bilden\", \"ser ut\", \"verkar\", \"troligen\", \"kanske\" och liknande tveksamheter. " +
-          "Priset priceSek är ett heltal i svenska kronor, rimligt för begagnat. Använd runda, enkla priser som 50, 200 eller 1000; använd inte priser som slutar på 9, t.ex. 49 eller 199. " +
           "Kategori: ange categoryResolution.mode existing med path-array som matchar ett befintligt spår ordagrant utan teknisk rotnod, " +
           "eller mode new_leaf med parentPath till konkret förälder (t.ex. [\"Kläder\"]) och suggestedNameSv om ingen nod passar. " +
+          "I läget existing får path aldrig vara enbart rotnoden Sortiment — minst en konkret gren eller blad under Sortiment, annars new_leaf. " +
           "Välj aldrig generiska fångstkategorier som \"Sortiment\", \"Övrigt\", \"Diverse\" eller liknande — skapa i stället new_leaf med ett beskrivande svenskt namn " +
           "(t.ex. produkttyp: \"Brädspel\", \"Pussel\", \"Barnböcker\"). " +
           "Använd inte kategorier som \"Importerade\" (är föråldrade) — välj en konkret kategori eller new_leaf. " +
@@ -363,7 +409,10 @@ async function runOpenAIListing(
         ],
       },
     ],
-    response_format: zodResponseFormat(productListingAISchema, "product_listing"),
+    response_format: zodResponseFormat(
+      productListingBodyAISchema,
+      "product_listing_body",
+    ),
   });
 
   const parsed = completion.choices[0]?.message?.parsed;
@@ -444,65 +493,103 @@ export const runPipeline = internalAction({
         attributes: ReturnType<typeof normalizeAiAttributes>;
       };
 
+      /**
+       * Kör pris- och kropp-API parallellt; skriver pris till DB så snart pris-svaret finns
+       * (kroppen kan fortfarande räkna) så klienten kan visa pris före titel/beskrivning.
+       */
       const listingFromUserContext = async (
         userContext: string | undefined,
+        expectedEpoch: number,
       ): Promise<ListingPayload> => {
-        const listing = await runOpenAIListing(
-          openai,
-          base64,
-          visionMime,
-          taxonomySnapshot,
-          userContext,
-        );
-        const revalidate = productListingAISchema.safeParse(listing);
-        if (!revalidate.success) {
-          throw new Error("AI-metadata var ogiltig.");
-        }
-        const priceSek = normalizeListingPriceSek(revalidate.data.priceSek);
-        const resolved = await ctx.runMutation(
-          internal.taxonomy.resolveCategoryProposal,
-          {
-            shopId,
-            listingTitleSv: revalidate.data.title,
-            categoryResolution: revalidate.data.categoryResolution,
-          },
-        );
-        const attributes = normalizeAiAttributes(revalidate.data.attributes);
+        const priceWork = async (): Promise<number> => {
+          const raw = await runOpenAIPriceSek(openai, base64, visionMime, userContext);
+          const priceRe = productPriceAISchema.safeParse(raw);
+          if (!priceRe.success) {
+            throw new Error("AI-prisförslag var ogiltigt.");
+          }
+          const priceSek = normalizeListingPriceSek(priceRe.data.priceSek);
+          const patched = await ctx.runMutation(internal.products.applyAiListingPriceOnly, {
+            productId: args.productId,
+            priceSek,
+            expectedUserContextEpoch: expectedEpoch,
+          });
+          if (!patched) {
+            throw new ListingEpochStale();
+          }
+          return priceSek;
+        };
+
+        const bodyWork = async (): Promise<{
+          title: string;
+          description: string;
+          categoryId: Id<"taxonomyNodes">;
+          attributes: ReturnType<typeof normalizeAiAttributes>;
+        }> => {
+          const raw = await runOpenAIListingBody(
+            openai,
+            base64,
+            visionMime,
+            taxonomySnapshot,
+            userContext,
+          );
+          const bodyRe = productListingBodyAISchema.safeParse(raw);
+          if (!bodyRe.success) {
+            throw new Error("AI-metadata var ogiltig.");
+          }
+          const resolved = await ctx.runMutation(
+            internal.taxonomy.resolveCategoryProposal,
+            {
+              shopId,
+              listingTitleSv: bodyRe.data.title,
+              categoryResolution: bodyRe.data.categoryResolution,
+            },
+          );
+          const attributes = normalizeAiAttributes(bodyRe.data.attributes);
+          return {
+            title: bodyRe.data.title,
+            description: bodyRe.data.description,
+            categoryId: resolved.categoryId,
+            attributes,
+          };
+        };
+
+        const [priceSek, bodyPayload] = await Promise.all([priceWork(), bodyWork()]);
         return {
-          title: revalidate.data.title,
-          description: revalidate.data.description,
+          ...bodyPayload,
           priceSek,
-          categoryId: resolved.categoryId,
-          attributes,
         };
       };
 
-      const listingOutcome = await Promise.allSettled([
-        listingFromUserContext(meta.userContext),
-      ]);
-      if (listingOutcome[0].status === "rejected") {
-        const reason = listingOutcome[0].reason;
-        const message =
-          reason instanceof Error
-            ? reason.message
-            : "Okänt fel vid produktdata (OpenAI).";
-        await fail(message);
-        return;
-      }
-
       let pipelineMeta = meta;
-      let payload = listingOutcome[0].value;
-
+      let payload: ListingPayload;
       let textApplied = false;
       for (let attempt = 0; attempt < 8; attempt++) {
-        const epoch = pipelineMeta.userContextEpoch ?? 0;
+        const epoch = pipelineMeta.userContextEpoch;
+        try {
+          payload = await listingFromUserContext(pipelineMeta.userContext, epoch);
+        } catch (e) {
+          if (e instanceof ListingEpochStale) {
+            const fresh = await ctx.runQuery(internal.products.getProductForPipeline, {
+              productId: args.productId,
+            });
+            if (!fresh) {
+              return;
+            }
+            pipelineMeta = fresh;
+            continue;
+          }
+          const message =
+            e instanceof Error ? e.message : "Okänt fel vid produktdata (OpenAI).";
+          await fail(message);
+          return;
+        }
+
         const applied: boolean = await ctx.runMutation(
           internal.products.applyAiListingTextOnly,
           {
             productId: args.productId,
             title: payload.title,
             description: payload.description,
-            priceSek: payload.priceSek,
             categoryId: payload.categoryId,
             attributes: payload.attributes,
             expectedUserContextEpoch: epoch,
@@ -519,14 +606,6 @@ export const runPipeline = internalAction({
           return;
         }
         pipelineMeta = fresh;
-        try {
-          payload = await listingFromUserContext(fresh.userContext);
-        } catch (e) {
-          const message =
-            e instanceof Error ? e.message : "Okänt fel vid produktdata (OpenAI).";
-          await fail(message);
-          return;
-        }
       }
 
       if (!textApplied) {
@@ -663,7 +742,7 @@ export const regenerateListingText = internalAction({
       return;
     }
     const regenShopId = meta.shopId;
-    if ((meta.userContextEpoch ?? 0) !== args.expectedUserContextEpoch) {
+    if (meta.userContextEpoch !== args.expectedUserContextEpoch) {
       return;
     }
 
@@ -691,45 +770,80 @@ export const regenerateListingText = internalAction({
     );
 
     const openai = new OpenAI({ apiKey: openaiKey });
-    let listing: ProductListingAI;
-    try {
-      listing = await runOpenAIListing(
+    const regenEpoch = args.expectedUserContextEpoch;
+
+    const priceWork = async (): Promise<boolean> => {
+      const raw = await runOpenAIPriceSek(openai, base64, visionMime, meta.userContext);
+      const priceRe = productPriceAISchema.safeParse(raw);
+      if (!priceRe.success) {
+        return false;
+      }
+      const priceSek = normalizeListingPriceSek(priceRe.data.priceSek);
+      return await ctx.runMutation(internal.products.applyAiListingPriceOnly, {
+        productId: args.productId,
+        priceSek,
+        expectedUserContextEpoch: regenEpoch,
+      });
+    };
+
+    const bodyWork = async (): Promise<{
+      title: string;
+      description: string;
+      categoryId: Id<"taxonomyNodes">;
+      attributes: ReturnType<typeof normalizeAiAttributes>;
+    } | null> => {
+      const raw = await runOpenAIListingBody(
         openai,
         base64,
         visionMime,
         taxonomySnapshot,
         meta.userContext,
       );
+      const bodyRe = productListingBodyAISchema.safeParse(raw);
+      if (!bodyRe.success) {
+        return null;
+      }
+      const resolved = await ctx.runMutation(
+        internal.taxonomy.resolveCategoryProposal,
+        {
+          shopId: regenShopId,
+          listingTitleSv: bodyRe.data.title,
+          categoryResolution: bodyRe.data.categoryResolution,
+        },
+      );
+      const attributes = normalizeAiAttributes(bodyRe.data.attributes);
+      return {
+        title: bodyRe.data.title,
+        description: bodyRe.data.description,
+        categoryId: resolved.categoryId,
+        attributes,
+      };
+    };
+
+    let priceApplied: boolean;
+    let bodyPayload: Awaited<ReturnType<typeof bodyWork>>;
+    try {
+      [priceApplied, bodyPayload] = await Promise.all([priceWork(), bodyWork()]);
     } catch {
       return;
     }
-
-    const revalidate = productListingAISchema.safeParse(listing);
-    if (!revalidate.success) {
+    if (!priceApplied || !bodyPayload) {
       return;
     }
 
-    const priceSek = normalizeListingPriceSek(revalidate.data.priceSek);
-
-    const resolved = await ctx.runMutation(
-      internal.taxonomy.resolveCategoryProposal,
+    const textApplied = await ctx.runMutation(
+      internal.products.applyAiListingTextOnly,
       {
-        shopId: regenShopId,
-        listingTitleSv: revalidate.data.title,
-        categoryResolution: revalidate.data.categoryResolution,
+        productId: args.productId,
+        title: bodyPayload.title,
+        description: bodyPayload.description,
+        categoryId: bodyPayload.categoryId,
+        attributes: bodyPayload.attributes,
+        expectedUserContextEpoch: regenEpoch,
       },
     );
-
-    const attributes = normalizeAiAttributes(revalidate.data.attributes);
-
-    await ctx.runMutation(internal.products.applyAiListingTextOnly, {
-      productId: args.productId,
-      title: revalidate.data.title,
-      description: revalidate.data.description,
-      priceSek,
-      categoryId: resolved.categoryId,
-      attributes,
-      expectedUserContextEpoch: args.expectedUserContextEpoch,
-    });
+    if (!textApplied) {
+      return;
+    }
   },
 });

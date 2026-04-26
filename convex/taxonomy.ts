@@ -92,6 +92,28 @@ function isRootNode(node: Doc<"taxonomyNodes">): boolean {
   return node.parentId === null && (node.slug === ROOT_SLUG || isRootSegment(node.name));
 }
 
+/** Namn som AI ofta väljer som fångstkategori — ersätts med titelbaserat bladnamn. */
+function isGenericCategoryLeafName(name: string): boolean {
+  const n = name.trim().toLocaleLowerCase("sv");
+  if (n.length === 0) {
+    return true;
+  }
+  if (isRootSegment(name)) {
+    return true;
+  }
+  const generic = new Set([
+    "övrigt",
+    "diverse",
+    "importerade",
+    "annat",
+    "allmänt",
+    "misc",
+    "okategoriserat",
+    "okategoriserade",
+  ]);
+  return generic.has(n);
+}
+
 function cleanPathSegments(segments: Array<string>): Array<string> {
   return segments.map((s) => s.trim()).filter(Boolean);
 }
@@ -376,7 +398,10 @@ export const resolveCategoryProposal = internalMutation({
       }
       const id = await walkExistingPath(ctx, args.shopId, segments);
       if (id) {
-        return { categoryId: id };
+        const node = await ctx.db.get("taxonomyNodes", id);
+        if (node && !isRootNode(node)) {
+          return { categoryId: id };
+        }
       }
       const autoId = await createAutoLeafUnderSortiment(
         ctx,
@@ -399,9 +424,10 @@ export const resolveCategoryProposal = internalMutation({
 
     const resolvedParentId: Id<"taxonomyNodes"> = parentId;
 
-    const name =
-      args.categoryResolution.suggestedNameSv.trim() ||
-      autoLeafNameFromListingTitle(args.listingTitleSv);
+    const rawSuggested = args.categoryResolution.suggestedNameSv.trim();
+    const name = isGenericCategoryLeafName(rawSuggested)
+      ? autoLeafNameFromListingTitle(args.listingTitleSv)
+      : rawSuggested || autoLeafNameFromListingTitle(args.listingTitleSv);
     const baseSlug = slugifyTaxonomySegment(name);
     const slug = await uniqueSlugForParent(
       ctx,

@@ -69,5 +69,18 @@ export const productListingAISchema = z.object({
   attributes: z.array(productAttributeAISchema).max(24),
 });
 
+/** Endast pris — parallellt vision-anrop vid inskanning. */
+export const productPriceAISchema = z.object({
+  /** SEK; avrundas/normaliseras i pipeline. */
+  priceSek: z.number().min(1).max(1_000_000),
+});
+
+/** Titel, beskrivning, kategori, attribut utan pris — parallellt med productPriceAISchema. */
+export const productListingBodyAISchema = productListingAISchema.omit({
+  priceSek: true,
+});
+
 export type ProductListingAI = z.infer<typeof productListingAISchema>;
+export type ProductPriceAI = z.infer<typeof productPriceAISchema>;
+export type ProductListingBodyAI = z.infer<typeof productListingBodyAISchema>;
 export type CategoryResolutionAI = z.infer<typeof categoryResolutionAISchema>;

@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Send } from 'lucide-react'
 import { api } from '../../../../../convex/_generated/api'
 import type { Id } from '../../../../../convex/_generated/dataModel'
 import type {
@@ -30,7 +31,6 @@ import {
   TaxonomyTreePicker,
   flattenTaxonomyIdsPreorder,
 } from '~/components/TaxonomyTreePicker'
-import { Send } from 'lucide-react'
 import { useConfirm } from '~/lib/confirm'
 import { useShopSession } from '~/lib/shopSession'
 
@@ -179,9 +179,25 @@ function RedigeraVaraPage() {
   }, [getProduct, taxonomyTree, productId])
 
   const listingNotReady =
-    getProduct?.captureStatus === 'processing' &&
-    getProduct?.captureListingReady !== true
-  const studioImagePending = getProduct?.captureStudioImagePending === true
+    getProduct != null &&
+    getProduct.captureStatus === 'processing' &&
+    getProduct.captureListingReady !== true
+  const studioImagePending =
+    getProduct != null && getProduct.captureStudioImagePending === true
+
+  /** Under inskanning: prisfält kan redigeras så snart AI satt pris (>0), före övrig listning är klar. */
+  const disabledPriceControl = Boolean(
+    saving ||
+      enrichBusy ||
+      (listingNotReady && getProduct.priceSek <= 0),
+  )
+
+  /** Väntar på parallellt pris-API innan första pris skrivs till varan. */
+  const priceAiPending =
+    getProduct != null &&
+    getProduct.captureStatus === 'processing' &&
+    getProduct.captureListingReady !== true &&
+    getProduct.priceSek <= 0
 
   const disabledForm = Boolean(listingNotReady || saving || enrichBusy)
   const disabledImageControls = Boolean(
@@ -201,8 +217,8 @@ function RedigeraVaraPage() {
               Skapar butiksbild …
             </p>
             <p className="max-w-xs text-xs text-brand-dark/65">
-              Du kan redigera titel, pris och text under tiden. Rotation och ny
-              bild aktiveras när bilden är klar.
+              Pris kan fyllas i tidigt; titel och beskrivning när listan är klar.
+              Rotation och ny bild aktiveras när bilden är klar.
             </p>
           </div>
         </div>
@@ -506,8 +522,9 @@ function RedigeraVaraPage() {
       getProduct.captureListingReady !== true ? (
         <div className="mb-3 rounded-lg border border-brand-dark/10 bg-brand-surface/90 p-3 text-sm text-brand-dark/80">
           <p>
-            AI skriver fortfarande titel, pris och beskrivning. Fält låses upp
-            så snart textförslaget finns.
+            AI skriver titel och beskrivning. Prisförslag kan visas tidigare —
+            prisfältet låses upp när ett pris finns. Övriga fält när listan är
+            klar.
           </p>
         </div>
       ) : null}
@@ -578,6 +595,100 @@ function RedigeraVaraPage() {
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_26rem]">
           <div className="space-y-5">
+            <section
+              className={`${panelClass()} space-y-3`}
+              aria-labelledby={priceSectionHeadingId}
+            >
+              <h2
+                id={priceSectionHeadingId}
+                className="font-heading text-xl font-bold text-brand-dark"
+              >
+                Pris
+              </h2>
+              {priceAiPending ? (
+                <div
+                  className="flex items-center gap-3 rounded-lg border border-brand-dark/10 bg-brand-bg/70 px-3 py-3 text-sm text-brand-dark/80"
+                  aria-busy="true"
+                  aria-live="polite"
+                >
+                  <div
+                    className="size-8 shrink-0 animate-spin rounded-full border-2 border-brand-dark/20 border-t-brand-dark"
+                    aria-hidden
+                  />
+                  <p>Beräknar pris från bilden …</p>
+                </div>
+              ) : (
+                <>
+                  <div
+                    className={`flex min-w-0 items-stretch rounded-lg border shadow-inner shadow-brand-dark/[0.02] transition focus-within:border-brand-dark/40 focus-within:ring-2 focus-within:ring-brand-dark/10 ${
+                      fieldErrors.priceSek
+                        ? 'border-brand-accent'
+                        : 'border-brand-dark/15'
+                    } ${disabledPriceControl ? 'bg-brand-dark/5' : 'bg-white'}`}
+                  >
+                    <input
+                      id={priceFieldId}
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono text-lg font-semibold tabular-nums text-brand-dark outline-none ring-0 focus:ring-0 disabled:cursor-not-allowed"
+                      value={priceSek}
+                      onChange={(e) => {
+                        setPriceSek(sanitizePriceInput(e.target.value))
+                        setFieldErrors((fe) => ({ ...fe, priceSek: undefined }))
+                      }}
+                      required
+                      disabled={disabledPriceControl}
+                      aria-invalid={Boolean(fieldErrors.priceSek)}
+                      aria-labelledby={priceSectionHeadingId}
+                      aria-describedby={
+                        fieldErrors.priceSek ? `${priceFieldId}-err` : undefined
+                      }
+                    />
+                    <span
+                      className="flex select-none items-center pr-3 font-mono text-sm font-medium tabular-nums text-brand-dark/50"
+                      aria-hidden="true"
+                    >
+                      kr
+                    </span>
+                  </div>
+                  <div>
+                    <label className="sr-only" htmlFor={priceSliderId}>
+                      Justera pris med reglage
+                    </label>
+                    <input
+                      id={priceSliderId}
+                      type="range"
+                      min={0}
+                      max={PRICE_STEPS.length - 1}
+                      step={1}
+                      value={sliderValue}
+                      disabled={disabledPriceControl}
+                      className="h-3 w-full cursor-pointer appearance-none rounded-full bg-brand-dark/15 accent-brand-accent disabled:opacity-50"
+                      onChange={(e) => {
+                        const v = PRICE_STEPS[Number(e.target.value)]
+                        setPriceSek(String(v))
+                        setFieldErrors((fe) => ({ ...fe, priceSek: undefined }))
+                      }}
+                    />
+                    <div className="mt-1.5 flex justify-between gap-3 text-xs text-brand-dark/55">
+                      <span>lite</span>
+                      <span>mycket</span>
+                    </div>
+                  </div>
+                  {fieldErrors.priceSek ? (
+                    <p
+                      id={`${priceFieldId}-err`}
+                      className="text-xs text-brand-accent"
+                      role="alert"
+                    >
+                      {fieldErrors.priceSek}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </section>
+
             <section className={`${panelClass('accent')} space-y-4`}>
               <h2 className="font-heading text-xl font-bold text-brand-dark">
                 Grundinfo
@@ -675,84 +786,6 @@ function RedigeraVaraPage() {
                   </p>
                 ) : null}
               </div>
-            </section>
-
-            <section
-              className={`${panelClass()} space-y-3`}
-              aria-labelledby={priceSectionHeadingId}
-            >
-              <h2
-                id={priceSectionHeadingId}
-                className="font-heading text-xl font-bold text-brand-dark"
-              >
-                Pris
-              </h2>
-              <div
-                className={`flex min-w-0 items-stretch rounded-lg border shadow-inner shadow-brand-dark/[0.02] transition focus-within:border-brand-dark/40 focus-within:ring-2 focus-within:ring-brand-dark/10 ${
-                  fieldErrors.priceSek
-                    ? 'border-brand-accent'
-                    : 'border-brand-dark/15'
-                } ${disabledForm ? 'bg-brand-dark/5' : 'bg-white'}`}
-              >
-                <input
-                  id={priceFieldId}
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono text-lg font-semibold tabular-nums text-brand-dark outline-none ring-0 focus:ring-0 disabled:cursor-not-allowed"
-                  value={priceSek}
-                  onChange={(e) => {
-                    setPriceSek(sanitizePriceInput(e.target.value))
-                    setFieldErrors((fe) => ({ ...fe, priceSek: undefined }))
-                  }}
-                  required
-                  disabled={disabledForm}
-                  aria-invalid={Boolean(fieldErrors.priceSek)}
-                  aria-labelledby={priceSectionHeadingId}
-                  aria-describedby={
-                    fieldErrors.priceSek ? `${priceFieldId}-err` : undefined
-                  }
-                />
-                <span
-                  className="flex select-none items-center pr-3 font-mono text-sm font-medium tabular-nums text-brand-dark/50"
-                  aria-hidden="true"
-                >
-                  kr
-                </span>
-              </div>
-              <div>
-                <label className="sr-only" htmlFor={priceSliderId}>
-                  Justera pris med reglage
-                </label>
-                <input
-                  id={priceSliderId}
-                  type="range"
-                  min={0}
-                  max={PRICE_STEPS.length - 1}
-                  step={1}
-                  value={sliderValue}
-                  disabled={disabledForm}
-                  className="h-3 w-full cursor-pointer appearance-none rounded-full bg-brand-dark/15 accent-brand-accent disabled:opacity-50"
-                  onChange={(e) => {
-                    const v = PRICE_STEPS[Number(e.target.value)]
-                    setPriceSek(String(v))
-                    setFieldErrors((fe) => ({ ...fe, priceSek: undefined }))
-                  }}
-                />
-                <div className="mt-1.5 flex justify-between gap-3 text-xs text-brand-dark/55">
-                  <span>lite</span>
-                  <span>mycket</span>
-                </div>
-              </div>
-              {fieldErrors.priceSek ? (
-                <p
-                  id={`${priceFieldId}-err`}
-                  className="text-xs text-brand-accent"
-                  role="alert"
-                >
-                  {fieldErrors.priceSek}
-                </p>
-              ) : null}
             </section>
 
             <section
