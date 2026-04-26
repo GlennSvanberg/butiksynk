@@ -38,6 +38,8 @@ export const Route = createFileRoute('/app/varor/$productId/redigera')({
   component: RedigeraVaraPage,
 })
 
+const REDIGERA_VARA_FORM_ID = 'redigera-vara-form'
+
 const PRICE_STEPS = [
   1, 5, 10, 20, 30, 50, 75, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500,
   2000, 3000, 5000, 7500, 10000,
@@ -323,9 +325,8 @@ function RedigeraVaraPage() {
       <p className="text-sm text-brand-dark/60">Ingen huvudbild.</p>
     )
 
-  const onSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault()
+  const performSave = useCallback(
+    async (afterSave: 'list' | 'new') => {
       if (!session || !getProduct) {
         return
       }
@@ -362,7 +363,11 @@ function RedigeraVaraPage() {
           attributes: attrs,
           ...(newImageId ? { imageStorageId: newImageId } : {}),
         })
-        void router.navigate({ to: '/app/varor' })
+        if (afterSave === 'list') {
+          void router.navigate({ to: '/app/varor' })
+        } else {
+          void router.navigate({ to: '/app/varor/ny' })
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Kunde inte spara.')
       } finally {
@@ -383,6 +388,11 @@ function RedigeraVaraPage() {
       router,
     ],
   )
+
+  const onFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    void performSave('list')
+  }
 
   const onRotate = async (direction: 'cw' | 'ccw' | '180') => {
     if (
@@ -563,7 +573,7 @@ function RedigeraVaraPage() {
     !categoryId
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 pb-40 pt-6 sm:px-6 sm:pb-44 lg:px-8 lg:py-8 lg:pb-44">
+    <main className="mx-auto w-full max-w-7xl px-4 pb-56 pt-6 sm:px-6 sm:pb-60 lg:px-8 lg:py-8 lg:pb-60">
       <Link
         to="/app/varor"
         className="mb-4 inline-flex text-sm font-semibold text-brand-dark/75 underline decoration-brand-dark/25 underline-offset-4 transition hover:text-brand-dark hover:decoration-brand-dark/60"
@@ -601,7 +611,8 @@ function RedigeraVaraPage() {
       ) : null}
 
       <form
-        onSubmit={(e) => void onSubmit(e)}
+        id={REDIGERA_VARA_FORM_ID}
+        onSubmit={onFormSubmit}
         className="space-y-5"
         aria-labelledby={titleId}
       >
@@ -611,40 +622,21 @@ function RedigeraVaraPage() {
           </p>
         ) : null}
 
-        <div className="sticky top-0 z-20 -mx-4 rounded-b-2xl border border-t-0 border-brand-dark/10 bg-brand-bg/95 px-4 py-3 shadow-sm backdrop-blur-sm sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-          <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <header className="min-w-0">
-              <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-accent sm:text-xs">
-                Verktyg · {session.shopName}
-              </p>
-              <h1
-                className="font-heading text-2xl font-bold tracking-tight text-brand-dark sm:text-3xl"
-                id={titleId}
-              >
-                Redigera vara
-              </h1>
-              <p className="mt-1 line-clamp-2 text-xs text-brand-dark/70 sm:text-sm">
-                Ändringar syns bland varorna och i den publika butiken direkt
-                när de sparats.
-              </p>
-            </header>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <button
-                type="submit"
-                className="inline-flex items-center justify-center rounded-lg bg-brand-dark px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90 disabled:opacity-60"
-                disabled={saveDisabled}
-              >
-                {saving ? 'Sparar…' : 'Spara'}
-              </button>
-              <Link
-                to="/app/varor"
-                className="inline-flex items-center justify-center rounded-lg border border-brand-dark/20 bg-white px-5 py-2.5 text-sm font-semibold text-brand-dark shadow-sm transition hover:bg-brand-dark/5"
-              >
-                Avbryt
-              </Link>
-            </div>
-          </div>
-        </div>
+        <header className="rounded-2xl border border-brand-dark/10 bg-brand-surface p-4 shadow-sm sm:p-5">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-accent sm:text-xs">
+            Verktyg · {session.shopName}
+          </p>
+          <h1
+            className="font-heading text-2xl font-bold tracking-tight text-brand-dark sm:text-3xl"
+            id={titleId}
+          >
+            Redigera vara
+          </h1>
+          <p className="mt-1 text-xs text-brand-dark/70 sm:text-sm">
+            Ändringar syns bland varorna och i den publika butiken direkt när de
+            sparats. Spara-åtgärder finns längst ned tillsammans med AI.
+          </p>
+        </header>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_26rem]">
           <div className="space-y-5">
@@ -1010,72 +1002,109 @@ function RedigeraVaraPage() {
 
       <div
         className="fixed inset-x-0 bottom-0 z-30 border-t border-brand-dark/10 bg-brand-surface/95 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-6px_28px_rgba(0,0,0,0.07)] backdrop-blur-md supports-[backdrop-filter]:bg-brand-surface/88"
-        role="region"
-        aria-label="Be AI om ändringar"
+        aria-label="Spara vara och AI"
       >
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 sm:px-6 lg:px-8">
-          {enrichError ? (
-            <p
-              className="rounded-lg border border-brand-accent/25 bg-brand-accent/10 px-3 py-2 text-xs text-brand-dark"
-              role="alert"
+        <div className="mx-auto flex max-w-7xl flex-col gap-2.5 px-4 sm:px-6 lg:px-8">
+          <div
+            role="region"
+            aria-label="Spara och publicera"
+            className="flex flex-wrap items-stretch gap-2"
+          >
+            <button
+              type="submit"
+              form={REDIGERA_VARA_FORM_ID}
+              className="inline-flex min-h-[2.75rem] min-w-0 flex-1 items-center justify-center rounded-lg bg-brand-dark px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90 disabled:opacity-60 sm:min-w-[5.5rem] sm:flex-none"
+              disabled={saveDisabled}
             >
-              {enrichError}
-            </p>
-          ) : null}
-          <div className="flex items-end gap-2">
-            <label htmlFor={aiDockInputId} className="sr-only">
-              Beskriv vad du vill att AI ska ändra i varan
-            </label>
-            <textarea
-              id={aiDockInputId}
-              rows={2}
-              className="min-h-[2.75rem] max-h-36 min-w-0 flex-1 resize-y rounded-2xl border border-brand-dark/15 bg-white px-4 py-2.5 text-sm text-brand-dark shadow-inner shadow-brand-dark/[0.02] transition placeholder:text-brand-dark/40 focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5"
-              value={enrichNotes}
-              onChange={(e) => {
-                setEnrichNotes(e.target.value)
-                setEnrichError(null)
-              }}
-              disabled={disabledForm}
-              placeholder="Be om valfri ändring — pris, text, kategori, attribut …"
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter' || e.shiftKey) {
-                  return
-                }
-                if (
-                  disabledForm ||
+              {saving ? 'Sparar…' : 'Spara'}
+            </button>
+            <button
+              type="button"
+              className="inline-flex min-h-[2.75rem] min-w-0 flex-1 items-center justify-center rounded-lg border border-brand-dark/25 bg-white px-3 py-2 text-sm font-semibold text-brand-dark shadow-sm transition hover:bg-brand-dark/5 disabled:opacity-60 sm:min-w-[7.5rem] sm:flex-initial"
+              disabled={saveDisabled}
+              onClick={() => void performSave('new')}
+            >
+              <span className="min-[28rem]:hidden">Spara &amp; ny</span>
+              <span className="hidden min-[28rem]:inline">
+                Spara och skapa ny vara
+              </span>
+            </button>
+            <Link
+              to="/app/varor"
+              className="inline-flex min-h-[2.75rem] min-w-0 flex-1 items-center justify-center rounded-lg border border-brand-dark/20 bg-white px-4 py-2 text-center text-sm font-semibold text-brand-dark shadow-sm transition hover:bg-brand-dark/5 sm:flex-none"
+            >
+              Avbryt
+            </Link>
+          </div>
+
+          <div
+            className="border-t border-brand-dark/10 pt-2"
+            role="region"
+            aria-label="Be AI om ändringar"
+          >
+            {enrichError ? (
+              <p
+                className="mb-2 rounded-lg border border-brand-accent/25 bg-brand-accent/10 px-3 py-2 text-xs text-brand-dark"
+                role="alert"
+              >
+                {enrichError}
+              </p>
+            ) : null}
+            <div className="flex items-end gap-2">
+              <label htmlFor={aiDockInputId} className="sr-only">
+                Beskriv vad du vill att AI ska ändra i varan
+              </label>
+              <textarea
+                id={aiDockInputId}
+                rows={2}
+                className="min-h-[2.75rem] max-h-36 min-w-0 flex-1 resize-y rounded-2xl border border-brand-dark/15 bg-white px-4 py-2.5 text-sm text-brand-dark shadow-inner shadow-brand-dark/[0.02] transition placeholder:text-brand-dark/40 focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5"
+                value={enrichNotes}
+                onChange={(e) => {
+                  setEnrichNotes(e.target.value)
+                  setEnrichError(null)
+                }}
+                disabled={disabledForm}
+                placeholder="Be om valfri ändring — pris, text, kategori, attribut …"
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' || e.shiftKey) {
+                    return
+                  }
+                  if (
+                    disabledForm ||
+                    (getProduct.captureStatus === 'processing' &&
+                      getProduct.captureListingReady !== true) ||
+                    enrichBusy ||
+                    saving
+                  ) {
+                    return
+                  }
+                  e.preventDefault()
+                  void onEnrichWithAi()
+                }}
+              />
+              <button
+                type="button"
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-dark px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90 disabled:opacity-50"
+                disabled={
                   (getProduct.captureStatus === 'processing' &&
                     getProduct.captureListingReady !== true) ||
                   enrichBusy ||
-                  saving
-                ) {
-                  return
+                  saving ||
+                  disabledForm
                 }
-                e.preventDefault()
-                void onEnrichWithAi()
-              }}
-            />
-            <button
-              type="button"
-              className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-dark px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90 disabled:opacity-50"
-              disabled={
-                (getProduct.captureStatus === 'processing' &&
-                  getProduct.captureListingReady !== true) ||
-                enrichBusy ||
-                saving ||
-                disabledForm
-              }
-              onClick={() => void onEnrichWithAi()}
-              aria-label={enrichBusy ? 'Berikar' : 'Skicka till AI'}
-            >
-              {enrichBusy ? (
-                <span className="tabular-nums">…</span>
-              ) : (
-                <>
-                  <Send className="size-4" aria-hidden />
-                  <span className="hidden sm:inline">Kör</span>
-                </>
-              )}
-            </button>
+                onClick={() => void onEnrichWithAi()}
+                aria-label={enrichBusy ? 'Berikar' : 'Skicka till AI'}
+              >
+                {enrichBusy ? (
+                  <span className="tabular-nums">…</span>
+                ) : (
+                  <>
+                    <Send className="size-4" aria-hidden />
+                    <span className="hidden sm:inline">Kör</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
