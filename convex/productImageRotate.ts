@@ -1,7 +1,7 @@
 "use node";
 
 import { v } from "convex/values";
-import { Jimp } from "jimp";
+import { Jimp, JimpMime } from "jimp";
 import { action } from "./_generated/server";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -54,7 +54,8 @@ export const rotateProductDisplayImage = action({
           ? 90
           : 180;
     image.rotate(deg);
-    const png = await image.getBuffer("image/png");
+    /** JPEG är mycket snabbare att enkoda än PNG för stora butiksbilder. */
+    const out = await image.getBuffer(JimpMime.jpeg, { quality: 90 });
 
     const postUrl: string = await ctx.runMutation(
       api.products.generateUploadUrl,
@@ -62,8 +63,8 @@ export const rotateProductDisplayImage = action({
     );
     const uploadRes = await fetch(postUrl, {
       method: "POST",
-      headers: { "Content-Type": "image/png" },
-      body: new Uint8Array(png),
+      headers: { "Content-Type": "image/jpeg" },
+      body: new Uint8Array(out),
       signal: AbortSignal.timeout(60_000),
     });
     if (!uploadRes.ok) {

@@ -12,7 +12,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Send } from 'lucide-react'
+import { ArrowDownUp, RotateCcw, RotateCw, Send } from 'lucide-react'
 import { api } from '../../../../../convex/_generated/api'
 import type { Id } from '../../../../../convex/_generated/dataModel'
 import type {
@@ -140,6 +140,10 @@ function RedigeraVaraPage() {
   const [newImageId, setNewImageId] = useState<Id<'_storage'> | null>(null)
   const [uploadBusy, setUploadBusy] = useState(false)
   const [rotateBusy, setRotateBusy] = useState(false)
+  /** Förhandsvisning: butiksbild (AI/studio) vs originalfoto när båda finns. */
+  const [imagePreviewTab, setImagePreviewTab] = useState<
+    'display' | 'original'
+  >('display')
   const [enrichNotes, setEnrichNotes] = useState('')
   const [enrichBusy, setEnrichBusy] = useState(false)
   const [enrichError, setEnrichError] = useState<string | null>(null)
@@ -156,6 +160,10 @@ function RedigeraVaraPage() {
 
   useEffect(() => {
     lastSyncedSnapshot.current = null
+  }, [productId])
+
+  useEffect(() => {
+    setImagePreviewTab('display')
   }, [productId])
 
   useEffect(() => {
@@ -203,6 +211,14 @@ function RedigeraVaraPage() {
   const disabledImageControls = Boolean(
     studioImagePending || listingNotReady || saving || enrichBusy || rotateBusy,
   )
+  const sourceSwapEligible = Boolean(
+    getProduct &&
+      getProduct.sourceImageStorageId != null &&
+      getProduct.sourceImageStorageId !== getProduct.imageStorageId,
+  )
+  const disableRotation =
+    disabledImageControls ||
+    (sourceSwapEligible && imagePreviewTab === 'original')
 
   const imageBlock =
     getProduct && studioImagePending ? (
@@ -225,41 +241,78 @@ function RedigeraVaraPage() {
       </div>
     ) : getProduct?.imageUrl ? (
       <div className="space-y-3">
+        {sourceSwapEligible ? (
+          <div
+            className="flex flex-wrap gap-1 rounded-lg border border-brand-dark/12 bg-white p-0.5 shadow-inner shadow-brand-dark/[0.02]"
+            role="tablist"
+            aria-label="Välj bildförhandsvisning"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={imagePreviewTab === 'display'}
+              className={`flex-1 rounded-md px-2.5 py-1.5 text-center text-xs font-semibold transition sm:flex-none sm:px-3 ${
+                imagePreviewTab === 'display'
+                  ? 'bg-brand-dark text-white shadow-sm'
+                  : 'text-brand-dark/80 hover:bg-brand-dark/5'
+              }`}
+              onClick={() => setImagePreviewTab('display')}
+            >
+              Butiksbild
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={imagePreviewTab === 'original'}
+              className={`flex-1 rounded-md px-2.5 py-1.5 text-center text-xs font-semibold transition sm:flex-none sm:px-3 ${
+                imagePreviewTab === 'original'
+                  ? 'bg-brand-dark text-white shadow-sm'
+                  : 'text-brand-dark/80 hover:bg-brand-dark/5'
+              }`}
+              onClick={() => setImagePreviewTab('original')}
+            >
+              Original
+            </button>
+          </div>
+        ) : null}
         <div className="grid min-h-64 place-items-center rounded-xl border border-brand-dark/10 bg-brand-bg/80 p-3">
           <img
-            src={getProduct.imageUrl}
+            src={
+              sourceSwapEligible && imagePreviewTab === 'original'
+                ? (getProduct.sourceImageUrl ?? getProduct.imageUrl)
+                : getProduct.imageUrl
+            }
             alt=""
             className="max-h-72 w-auto max-w-full rounded-lg object-contain lg:max-h-[min(54vh,30rem)]"
           />
         </div>
-        <p className="text-xs leading-relaxed text-brand-dark/65">
-          EXIF styr bara kamerans rotation — om bilden är tagen med lådan upp och
-          ner behöver du vända här.
-        </p>
         <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
-            className="rounded-lg border border-brand-dark/20 bg-brand-dark px-2.5 py-2 text-xs font-semibold text-white transition hover:bg-brand-dark/90 disabled:opacity-50"
-            disabled={disabledImageControls}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-dark/20 bg-brand-dark px-2 py-2 text-xs font-semibold text-white transition hover:bg-brand-dark/90 disabled:opacity-50"
+            disabled={disableRotation}
             onClick={() => void onRotate('180')}
           >
-            Vänd 180°
+            <ArrowDownUp className="size-4 shrink-0" aria-hidden />
+            <span className="leading-tight">Vänd 180°</span>
           </button>
           <button
             type="button"
-            className="rounded-lg border border-brand-dark/20 bg-white px-2.5 py-2 text-xs font-semibold text-brand-dark transition hover:bg-brand-dark/5 disabled:opacity-50"
-            disabled={disabledImageControls}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-dark/20 bg-white px-2 py-2 text-xs font-semibold text-brand-dark transition hover:bg-brand-dark/5 disabled:opacity-50"
+            disabled={disableRotation}
             onClick={() => void onRotate('cw')}
           >
-            90° medurs
+            <RotateCw className="size-4 shrink-0" aria-hidden />
+            <span className="leading-tight">90° medurs</span>
           </button>
           <button
             type="button"
-            className="rounded-lg border border-brand-dark/20 bg-white px-2.5 py-2 text-xs font-semibold text-brand-dark transition hover:bg-brand-dark/5 disabled:opacity-50"
-            disabled={disabledImageControls}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-dark/20 bg-white px-2 py-2 text-xs font-semibold text-brand-dark transition hover:bg-brand-dark/5 disabled:opacity-50"
+            disabled={disableRotation}
             onClick={() => void onRotate('ccw')}
           >
-            90° moturs
+            <RotateCcw className="size-4 shrink-0" aria-hidden />
+            <span className="leading-tight">90° moturs</span>
           </button>
         </div>
         {rotateBusy ? (
