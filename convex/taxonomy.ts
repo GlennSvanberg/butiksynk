@@ -609,6 +609,48 @@ export const createTaxonomyChild = mutation({
   },
 });
 
+/** Tar bort bladnod (inga barn). Varor i noden flyttas till föräldern. Roten \"Sortiment\" får inte raderas. */
+export const deleteTaxonomyNode = mutation({
+  args: {
+    shopId: v.id("shops"),
+    nodeId: v.id("taxonomyNodes"),
+  },
+  handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
+    const node = await ctx.db.get("taxonomyNodes", args.nodeId);
+    if (!node || node.shopId !== args.shopId) {
+      throw new Error("Ogiltig kategori.");
+    }
+    if (isRootNode(node)) {
+      throw new Error("Rotkategorin kan inte tas bort.");
+    }
+    const kids = await listChildren(ctx, args.shopId, args.nodeId);
+    if (kids.length > 0) {
+      throw new Error("Radera underkategorier först.");
+    }
+    const fallbackParentId = node.parentId;
+    if (fallbackParentId === null) {
+      throw new Error("Ogiltig nod.");
+    }
+    const affected = await ctx.db
+      .query("products")
+      .withIndex("by_category_node", (q) =>
+        q.eq("categoryId", args.nodeId),
+      )
+      .collect();
+    for (const p of affected) {
+      if (p.shopId !== args.shopId) {
+        continue;
+      }
+      await ctx.db.patch("products", p._id, {
+        categoryId: fallbackParentId,
+      } as never);
+    }
+    await ctx.db.delete("taxonomyNodes", args.nodeId);
+    return { ok: true as const };
+  },
+});
+
 export const listCategoryOptions = query({
   args: { shopId: v.id("shops") },
   handler: async (ctx, args) => {

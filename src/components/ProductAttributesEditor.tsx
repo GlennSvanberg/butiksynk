@@ -10,6 +10,7 @@ import type {
   NumberAttributeKey,
   TextAttributeKey,
 } from '../../shared/attributes'
+import { useId } from 'react'
 import type { StoredProductAttribute } from '~/lib/editProductForm'
 
 const ROW_KIND_LEGACY = 'legacy'
@@ -135,19 +136,32 @@ type Props = {
   density?: 'default' | 'compact'
 }
 
+const featuredFieldClass =
+  'min-w-0 flex-1 rounded-lg border border-brand-dark/15 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-brand-dark shadow-inner shadow-brand-dark/[0.02] focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5'
+
+const featuredLabelClass =
+  'w-[7.25rem] shrink-0 text-xs font-semibold uppercase tracking-wide text-brand-dark/70 sm:w-32'
+
+const featuredRowClass =
+  'flex min-w-0 items-center gap-2 py-0.5 sm:gap-3'
+
+/** Etikett till vänster i extra-attributrader (samma idé som featured, smalare). */
+const extraRowLabelClass =
+  'w-20 shrink-0 text-xs font-semibold uppercase tracking-wide text-brand-dark/65 sm:w-[5.25rem]'
+
+const extraFieldClass =
+  'min-w-0 flex-1 rounded-md border border-brand-dark/15 bg-white px-2 py-1.5 text-sm text-brand-dark focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5'
+
 export function ProductAttributesEditor({
   attributes,
   onChange,
   disabled,
   density = 'default',
 }: Props) {
+  const dimensionsGroupLabelId = useId()
   const compact = density === 'compact'
   const gap = compact ? 'gap-2' : 'gap-3'
   const stack = compact ? 'space-y-2' : 'space-y-3'
-  const rowPad = compact ? 'p-2' : 'p-3'
-  const typeRowClass = compact
-    ? 'flex flex-col gap-2 md:flex-row md:items-end md:justify-between md:gap-3'
-    : 'flex flex-col gap-2 sm:flex-row sm:items-start'
 
   const addRow = () => {
     onChange([...attributes, defaultAttrForRowKind(ROW_KIND_CUSTOM_TEXT)])
@@ -279,14 +293,9 @@ export function ProductAttributesEditor({
   return (
     <div className={stack}>
       <div className={`flex flex-wrap items-center justify-between ${gap}`}>
-        <div>
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-accent">
-            Attribut
-          </p>
-          <h2 className="mt-1 font-heading text-xl font-bold text-brand-dark">
-            Detaljer som går att skanna
-          </h2>
-        </div>
+        <h2 className="font-heading text-xl font-bold text-brand-dark">
+          Attribut
+        </h2>
         <button
           type="button"
           className="rounded-lg border border-brand-dark/20 bg-white px-3 py-2 text-xs font-semibold text-brand-dark transition hover:bg-brand-dark/5 disabled:opacity-50"
@@ -297,7 +306,7 @@ export function ProductAttributesEditor({
         </button>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-x-6 gap-y-1 lg:grid-cols-2">
         {FEATURED_TEXT_KEYS.map((key) => {
           const index = findTextIndex(key)
           const attr = index >= 0 ? attributes[index] : null
@@ -306,11 +315,13 @@ export function ProductAttributesEditor({
           return (
             <label
               key={key}
-              className="rounded-xl border border-brand-dark/10 bg-brand-bg/65 p-3 text-xs font-semibold uppercase tracking-wide text-brand-dark/70"
+              className={featuredRowClass}
             >
-              {ATTRIBUTE_LABEL_SV[key]}
+              <span className={featuredLabelClass}>
+                {ATTRIBUTE_LABEL_SV[key]}
+              </span>
               <input
-                className="mt-1.5 w-full rounded-lg border border-brand-dark/15 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-brand-dark shadow-inner shadow-brand-dark/[0.02] focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5"
+                className={featuredFieldClass}
                 value={value}
                 disabled={disabled}
                 placeholder={`Ange ${ATTRIBUTE_LABEL_SV[key].toLowerCase()}`}
@@ -319,10 +330,10 @@ export function ProductAttributesEditor({
             </label>
           )
         })}
-        <label className="rounded-xl border border-brand-dark/10 bg-brand-bg/65 p-3 text-xs font-semibold uppercase tracking-wide text-brand-dark/70">
-          Skick
+        <label className={featuredRowClass}>
+          <span className={featuredLabelClass}>Skick</span>
           <select
-            className="mt-1.5 w-full rounded-lg border border-brand-dark/15 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-brand-dark shadow-inner shadow-brand-dark/[0.02] focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5"
+            className={featuredFieldClass}
             value={
               condition && 'key' in condition && condition.type === 'enum'
                 ? condition.enumKey
@@ -353,25 +364,27 @@ export function ProductAttributesEditor({
               ? (attr.unit ?? '')
               : ''
           return (
-            <div
-              key={key}
-              className="rounded-xl border border-brand-dark/10 bg-brand-bg/65 p-3"
-            >
-              <p className="text-xs font-semibold uppercase tracking-wide text-brand-dark/70">
+            <div key={key} className={featuredRowClass}>
+              <p
+                id={`${dimensionsGroupLabelId}-${key}`}
+                className={featuredLabelClass}
+              >
                 {ATTRIBUTE_LABEL_SV[key]}
               </p>
-              <div className="mt-1.5 grid grid-cols-[1fr_6rem] gap-2">
+              <div className="flex min-w-0 flex-1 gap-2">
                 <input
                   type="text"
                   inputMode="decimal"
-                  className="w-full rounded-lg border border-brand-dark/15 bg-white px-3 py-2 text-sm text-brand-dark shadow-inner shadow-brand-dark/[0.02] focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5"
+                  aria-labelledby={`${dimensionsGroupLabelId}-${key}`}
+                  className={`${featuredFieldClass} min-w-0`}
                   value={value}
                   disabled={disabled}
                   placeholder="Värde"
                   onChange={(e) => setNumberValue(key, e.target.value)}
                 />
                 <select
-                  className="w-full rounded-lg border border-brand-dark/15 bg-white px-2 py-2 text-sm text-brand-dark shadow-inner shadow-brand-dark/[0.02] focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5"
+                  aria-labelledby={`${dimensionsGroupLabelId}-${key}`}
+                  className="w-[6rem] shrink-0 rounded-lg border border-brand-dark/15 bg-white px-2 py-2 text-sm text-brand-dark shadow-inner shadow-brand-dark/[0.02] focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5"
                   value={unit}
                   disabled={disabled}
                   onChange={(e) => setNumberUnit(key, e.target.value)}
@@ -407,11 +420,11 @@ export function ProductAttributesEditor({
       </div>
 
       {extraRows.length === 0 ? null : (
-        <div className="rounded-xl border border-brand-dark/10 bg-white/70 p-3">
+        <div className="mt-2 border-t border-brand-dark/10 pt-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-dark/65">
             Extra attribut
           </p>
-          <ul className={`mt-3 ${stack}`}>
+          <ul className="mt-2 divide-y divide-brand-dark/10">
             {extraRows.map(({ attr, index }) => {
               const kind = inferRowKind(attr)
               const setRow = (next: StoredProductAttribute) => {
@@ -424,15 +437,14 @@ export function ProductAttributesEditor({
               }
 
               return (
-                <li
-                  key={index}
-                  className={`rounded-lg border border-brand-dark/10 bg-white/80 shadow-sm ${rowPad}`}
-                >
-                  <div className={typeRowClass}>
-                    <label className="min-w-0 flex-1 text-xs text-brand-dark/70">
-                      Typ
+                <li key={index} className="space-y-1.5 py-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex min-w-0 flex-1 basis-[min(100%,22rem)] items-center gap-2">
+                      <span className="w-12 shrink-0 text-xs font-semibold uppercase tracking-wide text-brand-dark/65">
+                        Typ
+                      </span>
                       <select
-                        className="mt-0.5 w-full rounded-md border border-brand-dark/15 bg-white px-2 py-1.5 text-sm text-brand-dark"
+                        className="min-w-0 flex-1 rounded-md border border-brand-dark/15 bg-white px-2 py-1.5 text-sm text-brand-dark focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5"
                         value={kind}
                         disabled={disabled}
                         onChange={(e) => onKindChange(e.target.value)}
@@ -465,7 +477,7 @@ export function ProductAttributesEditor({
                     </label>
                     <button
                       type="button"
-                      className={`shrink-0 rounded-md border border-brand-dark/15 px-2 py-1 text-xs font-medium text-brand-dark/80 hover:bg-brand-dark/5 disabled:opacity-50 ${compact ? 'md:mt-4' : 'sm:mt-5'}`}
+                      className="shrink-0 rounded-md border border-brand-dark/15 px-2 py-1.5 text-xs font-medium text-brand-dark/80 hover:bg-brand-dark/5 disabled:opacity-50"
                       disabled={disabled}
                       onClick={() => onChange(removeAt(attributes, index))}
                     >
@@ -474,11 +486,11 @@ export function ProductAttributesEditor({
                   </div>
 
                   {!('key' in attr) ? (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      <label className="text-xs text-brand-dark/70">
-                        Etikett
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2">
+                        <span className={extraRowLabelClass}>Etikett</span>
                         <input
-                          className="mt-0.5 w-full rounded-md border border-brand-dark/15 px-2 py-1.5 text-sm"
+                          className={extraFieldClass}
                           value={attr.label}
                           disabled={disabled}
                           onChange={(e) =>
@@ -486,10 +498,10 @@ export function ProductAttributesEditor({
                           }
                         />
                       </label>
-                      <label className="text-xs text-brand-dark/70">
-                        Värde
+                      <label className="flex items-center gap-2">
+                        <span className={extraRowLabelClass}>Värde</span>
                         <input
-                          className="mt-0.5 w-full rounded-md border border-brand-dark/15 px-2 py-1.5 text-sm"
+                          className={extraFieldClass}
                           value={attr.value}
                           disabled={disabled}
                           onChange={(e) =>
@@ -503,10 +515,10 @@ export function ProductAttributesEditor({
                   {'key' in attr &&
                   attr.type === 'text' &&
                   attr.key !== 'custom' ? (
-                    <label className="mt-2 block text-xs text-brand-dark/70">
-                      Värde
+                    <label className="flex items-center gap-2">
+                      <span className={extraRowLabelClass}>Värde</span>
                       <input
-                        className="mt-0.5 w-full rounded-md border border-brand-dark/15 px-2 py-1.5 text-sm"
+                        className={extraFieldClass}
                         value={attr.text}
                         disabled={disabled}
                         onChange={(e) =>
@@ -519,13 +531,13 @@ export function ProductAttributesEditor({
                   {'key' in attr &&
                   attr.type === 'number' &&
                   attr.key !== 'custom' ? (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      <label className="text-xs text-brand-dark/70">
-                        Värde
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="flex min-w-0 flex-1 basis-[10rem] items-center gap-2">
+                        <span className={extraRowLabelClass}>Värde</span>
                         <input
                           type="text"
                           inputMode="decimal"
-                          className="mt-0.5 w-full rounded-md border border-brand-dark/15 px-2 py-1.5 text-sm tabular-nums"
+                          className={`${extraFieldClass} tabular-nums`}
                           value={
                             Number.isFinite(attr.value)
                               ? String(attr.value)
@@ -546,10 +558,12 @@ export function ProductAttributesEditor({
                           }}
                         />
                       </label>
-                      <label className="text-xs text-brand-dark/70">
-                        Enhet (valfritt)
+                      <label className="flex items-center gap-2">
+                        <span className="w-14 shrink-0 text-xs font-semibold uppercase tracking-wide text-brand-dark/65">
+                          Enhet
+                        </span>
                         <select
-                          className="mt-0.5 w-full rounded-md border border-brand-dark/15 px-2 py-1.5 text-sm"
+                          className="w-[6.5rem] shrink-0 rounded-md border border-brand-dark/15 bg-white px-2 py-1.5 text-sm text-brand-dark focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5"
                           value={attr.unit ?? ''}
                           disabled={disabled}
                           onChange={(e) => {
@@ -572,10 +586,10 @@ export function ProductAttributesEditor({
                   ) : null}
 
                   {'key' in attr && attr.type === 'enum' ? (
-                    <label className="mt-2 block text-xs text-brand-dark/70">
-                      Skick
+                    <label className="flex items-center gap-2">
+                      <span className={extraRowLabelClass}>Skick</span>
                       <select
-                        className="mt-0.5 w-full rounded-md border border-brand-dark/15 px-2 py-1.5 text-sm"
+                        className={extraFieldClass}
                         value={attr.enumKey}
                         disabled={disabled}
                         onChange={(e) =>
@@ -602,11 +616,11 @@ export function ProductAttributesEditor({
                   {'key' in attr &&
                   attr.key === 'custom' &&
                   attr.type === 'text' ? (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      <label className="text-xs text-brand-dark/70">
-                        Etikett
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2">
+                        <span className={extraRowLabelClass}>Etikett</span>
                         <input
-                          className="mt-0.5 w-full rounded-md border border-brand-dark/15 px-2 py-1.5 text-sm"
+                          className={extraFieldClass}
                           value={attr.customLabelSv}
                           disabled={disabled}
                           onChange={(e) =>
@@ -614,10 +628,10 @@ export function ProductAttributesEditor({
                           }
                         />
                       </label>
-                      <label className="text-xs text-brand-dark/70">
-                        Värde
+                      <label className="flex items-center gap-2">
+                        <span className={extraRowLabelClass}>Värde</span>
                         <input
-                          className="mt-0.5 w-full rounded-md border border-brand-dark/15 px-2 py-1.5 text-sm"
+                          className={extraFieldClass}
                           value={attr.text}
                           disabled={disabled}
                           onChange={(e) =>
@@ -631,11 +645,11 @@ export function ProductAttributesEditor({
                   {'key' in attr &&
                   attr.key === 'custom' &&
                   attr.type === 'number' ? (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                      <label className="text-xs text-brand-dark/70">
-                        Etikett
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                      <label className="flex min-w-0 flex-1 basis-[min(100%,12rem)] items-center gap-2">
+                        <span className={extraRowLabelClass}>Etikett</span>
                         <input
-                          className="mt-0.5 w-full rounded-md border border-brand-dark/15 px-2 py-1.5 text-sm"
+                          className={extraFieldClass}
                           value={attr.customLabelSv}
                           disabled={disabled}
                           onChange={(e) =>
@@ -643,12 +657,12 @@ export function ProductAttributesEditor({
                           }
                         />
                       </label>
-                      <label className="text-xs text-brand-dark/70">
-                        Värde
+                      <label className="flex min-w-0 flex-1 basis-[8rem] items-center gap-2">
+                        <span className={extraRowLabelClass}>Värde</span>
                         <input
                           type="text"
                           inputMode="decimal"
-                          className="mt-0.5 w-full rounded-md border border-brand-dark/15 px-2 py-1.5 text-sm tabular-nums"
+                          className={`${extraFieldClass} tabular-nums`}
                           value={
                             Number.isFinite(attr.value)
                               ? String(attr.value)
@@ -669,10 +683,12 @@ export function ProductAttributesEditor({
                           }}
                         />
                       </label>
-                      <label className="text-xs text-brand-dark/70">
-                        Enhet
+                      <label className="flex items-center gap-2">
+                        <span className="w-14 shrink-0 text-xs font-semibold uppercase tracking-wide text-brand-dark/65">
+                          Enhet
+                        </span>
                         <select
-                          className="mt-0.5 w-full rounded-md border border-brand-dark/15 px-2 py-1.5 text-sm"
+                          className="w-[6.5rem] shrink-0 rounded-md border border-brand-dark/15 bg-white px-2 py-1.5 text-sm text-brand-dark focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5"
                           value={attr.unit ?? ''}
                           disabled={disabled}
                           onChange={(e) => {

@@ -5,7 +5,13 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { useAction, useMutation, useQuery } from 'convex/react'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react'
 import { api } from '../../../../../convex/_generated/api'
 import type { Id } from '../../../../../convex/_generated/dataModel'
 import type {
@@ -24,6 +30,7 @@ import {
   TaxonomyTreePicker,
   flattenTaxonomyIdsPreorder,
 } from '~/components/TaxonomyTreePicker'
+import { Send } from 'lucide-react'
 import { useConfirm } from '~/lib/confirm'
 import { useShopSession } from '~/lib/shopSession'
 
@@ -35,8 +42,6 @@ const PRICE_STEPS = [
   1, 5, 10, 20, 30, 50, 75, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500,
   2000, 3000, 5000, 7500, 10000,
 ]
-
-const PRICE_TICK_LABELS = [100, 500, 1000, 5000, 10000]
 
 function formatSek(n: number): string {
   return n.toLocaleString('sv-SE')
@@ -66,8 +71,9 @@ function panelClass(tone: 'default' | 'accent' = 'default'): string {
   return `rounded-xl border ${border} p-4 sm:p-5`
 }
 
-function fieldClass(): string {
-  return 'mt-1 w-full rounded-lg border border-brand-dark/15 bg-white px-3 py-2 text-sm text-brand-dark shadow-inner shadow-brand-dark/[0.02] transition focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5 aria-invalid:border-brand-accent'
+function fieldClass(opts?: { omitTopMargin?: boolean }): string {
+  const mt = opts?.omitTopMargin ? '' : 'mt-1 '
+  return `${mt}w-full rounded-lg border border-brand-dark/15 bg-white px-3 py-2 text-sm text-brand-dark shadow-inner shadow-brand-dark/[0.02] transition focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5 aria-invalid:border-brand-accent`
 }
 
 function sectionKicker(): string {
@@ -83,9 +89,10 @@ function RedigeraVaraPage() {
   const titleFieldId = useId()
   const descFieldId = useId()
   const priceFieldId = useId()
-  const catFieldId = useId()
-  const categorySearchId = useId()
+  const categorySectionHeadingId = useId()
   const priceSliderId = useId()
+  const priceSectionHeadingId = useId()
+  const aiDockInputId = useId()
 
   const productId = productIdParam as Id<'products'>
 
@@ -97,16 +104,13 @@ function RedigeraVaraPage() {
     api.taxonomy.listTaxonomyTree,
     session ? { shopId: session.shopId } : 'skip',
   )
-  const categoryOptions = useQuery(
-    api.taxonomy.listCategoryOptions,
-    session ? { shopId: session.shopId } : 'skip',
-  )
   const updateProduct = useMutation(api.products.updateProduct)
   const generateUploadUrl = useMutation(api.products.generateUploadUrl)
   const ensureTaxonomy = useMutation(api.taxonomy.ensureTaxonomyForShop)
   const createTaxonomyChildMutation = useMutation(
     api.taxonomy.createTaxonomyChild,
   )
+  const deleteTaxonomyNodeMutation = useMutation(api.taxonomy.deleteTaxonomyNode)
   const rotateProductDisplayImage = useAction(
     api.productImageRotate.rotateProductDisplayImage,
   )
@@ -118,11 +122,13 @@ function RedigeraVaraPage() {
   const [description, setDescription] = useState('')
   const [priceSek, setPriceSek] = useState('')
   const [categoryId, setCategoryId] = useState<string>('')
-  const [categoryFilter, setCategoryFilter] = useState('')
-  const [newChildName, setNewChildName] = useState('')
-  const [taxonomyCreateOpen, setTaxonomyCreateOpen] = useState(false)
+  const [addUnderParentId, setAddUnderParentId] = useState<string | null>(null)
+  const [addChildName, setAddChildName] = useState('')
   const [taxonomyCreateBusy, setTaxonomyCreateBusy] = useState(false)
   const [taxonomyCreateError, setTaxonomyCreateError] = useState<string | null>(
+    null,
+  )
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(
     null,
   )
   const [attributes, setAttributes] = useState<Array<StoredProductAttribute>>(
@@ -137,46 +143,10 @@ function RedigeraVaraPage() {
   const [enrichNotes, setEnrichNotes] = useState('')
   const [enrichBusy, setEnrichBusy] = useState(false)
   const [enrichError, setEnrichError] = useState<string | null>(null)
-  const [aiSectionOpen, setAiSectionOpen] = useState(false)
   const lastSyncedSnapshot = useRef<string | null>(null)
 
   const priceNumeric = parsePriceSekToNumber(priceSek)
   const sliderValue = nearestPriceStepIndex(priceNumeric)
-  const snappedPriceValue = PRICE_STEPS[sliderValue]
-
-  const filteredCategoryOptions = useMemo(() => {
-    if (!categoryOptions) {
-      return []
-    }
-    const q = categoryFilter.trim().toLowerCase()
-    if (!q) {
-      return categoryOptions
-    }
-    return categoryOptions.filter((o) => o.pathLabel.toLowerCase().includes(q))
-  }, [categoryOptions, categoryFilter])
-
-  /** Behåll alltid vald kategori bland sökträffarna så valet inte försvinner. */
-  const categorySearchRows = useMemo(() => {
-    if (!categoryOptions) {
-      return []
-    }
-    const byId = new Map(categoryOptions.map((o) => [o.id, o] as const))
-    const rows = [...filteredCategoryOptions]
-    if (categoryId && !rows.some((o) => o.id === categoryId)) {
-      const cur = byId.get(categoryId as Id<'taxonomyNodes'>)
-      if (cur) {
-        rows.unshift(cur)
-      }
-    }
-    return rows.slice(0, 8)
-  }, [categoryOptions, filteredCategoryOptions, categoryId])
-
-  const selectedPathLabel = useMemo(() => {
-    if (!categoryOptions || !categoryId) {
-      return ''
-    }
-    return categoryOptions.find((o) => o.id === categoryId)?.pathLabel ?? ''
-  }, [categoryOptions, categoryId])
 
   useEffect(() => {
     if (session) {
@@ -360,11 +330,11 @@ function RedigeraVaraPage() {
     }
   }
 
-  const onCreateTaxonomyChild = async () => {
-    if (!session || !categoryId) {
+  const onSubmitInlineCategoryChild = async () => {
+    if (!session || !addUnderParentId) {
       return
     }
-    const name = newChildName.trim()
+    const name = addChildName.trim()
     if (!name) {
       setTaxonomyCreateError('Ange namn på den nya kategorin.')
       return
@@ -374,18 +344,49 @@ function RedigeraVaraPage() {
     try {
       const { id } = await createTaxonomyChildMutation({
         shopId: session.shopId,
-        parentId: categoryId as Id<'taxonomyNodes'>,
+        parentId: addUnderParentId as Id<'taxonomyNodes'>,
         name,
       })
       setCategoryId(id)
-      setNewChildName('')
-      setTaxonomyCreateOpen(false)
+      setAddChildName('')
+      setAddUnderParentId(null)
     } catch (e) {
       setTaxonomyCreateError(
         e instanceof Error ? e.message : 'Kunde inte skapa kategori.',
       )
     } finally {
       setTaxonomyCreateBusy(false)
+    }
+  }
+
+  const onDeleteTaxonomyNode = async (nodeId: string) => {
+    if (!session) {
+      return
+    }
+    const ok = await confirm({
+      title: 'Ta bort kategori?',
+      description:
+        'Noden måste vara tom (inga underkategorier). Varor i kategorin flyttas till nivån ovanför.',
+      confirmLabel: 'Ta bort',
+      cancelLabel: 'Avbryt',
+      variant: 'danger',
+    })
+    if (!ok) {
+      return
+    }
+    setTaxonomyCreateError(null)
+    setDeletingCategoryId(nodeId)
+    try {
+      await deleteTaxonomyNodeMutation({
+        shopId: session.shopId,
+        nodeId: nodeId as Id<'taxonomyNodes'>,
+      })
+    } catch (e) {
+      setTaxonomyCreateError(
+        e instanceof Error ? e.message : 'Kunde inte ta bort kategorin.',
+      )
+    } finally {
+      setDeletingCategoryId(null)
     }
   }
 
@@ -400,17 +401,6 @@ function RedigeraVaraPage() {
     const notes = enrichNotes.trim()
     if (!notes) {
       setEnrichError('Skriv något i rutan för att berika.')
-      return
-    }
-    const ok = await confirm({
-      title: 'Berika med AI?',
-      description:
-        'AI uppdaterar titel, beskrivning, pris, kategori och attribut utifrån din text. Visningsbilden ändras inte. Vill du fortsätta?',
-      confirmLabel: 'Berika',
-      cancelLabel: 'Avbryt',
-      variant: 'default',
-    })
-    if (!ok) {
       return
     }
     setEnrichError(null)
@@ -465,7 +455,7 @@ function RedigeraVaraPage() {
     !categoryId
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+    <main className="mx-auto w-full max-w-7xl px-4 pb-40 pt-6 sm:px-6 sm:pb-44 lg:px-8 lg:py-8 lg:pb-44">
       <Link
         to="/app/varor"
         className="mb-4 inline-flex text-sm font-semibold text-brand-dark/75 underline decoration-brand-dark/25 underline-offset-4 transition hover:text-brand-dark hover:decoration-brand-dark/60"
@@ -537,51 +527,12 @@ function RedigeraVaraPage() {
           </div>
         </div>
 
-        <section className="overflow-hidden rounded-2xl border border-brand-dark/10 bg-brand-dark text-white shadow-sm">
-          <div className="grid gap-4 p-5 sm:grid-cols-3 sm:p-6">
-            <div className="sm:col-span-2">
-              <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
-                Arbetskopian
-              </p>
-              <p className="mt-2 line-clamp-2 font-heading text-2xl font-bold tracking-tight sm:text-3xl">
-                {title || 'Namnlös vara'}
-              </p>
-              <p className="mt-2 line-clamp-2 max-w-2xl text-sm text-white/70">
-                {description || 'Beskrivning saknas.'}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
-              <div className="rounded-xl border border-white/10 bg-white/10 p-3">
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-white/55">
-                  Pris
-                </p>
-                <p className="mt-1 font-mono text-xl font-semibold tabular-nums">
-                  {priceNumeric === null
-                    ? '—'
-                    : `${formatSek(priceNumeric)} kr`}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/10 p-3">
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-white/55">
-                  Kategori
-                </p>
-                <p className="mt-1 line-clamp-2 text-sm font-semibold">
-                  {selectedPathLabel || 'Ej vald'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_26rem]">
           <div className="space-y-5">
             <section className={`${panelClass('accent')} space-y-4`}>
-              <div>
-                <p className={sectionKicker()}>Grundinfo</p>
-                <h2 className="mt-1 font-heading text-xl font-bold text-brand-dark">
-                  Texten kunderna ser
-                </h2>
-              </div>
+              <h2 className="font-heading text-xl font-bold text-brand-dark">
+                Grundinfo
+              </h2>
               <div>
                 <label
                   className="block text-xs font-semibold uppercase tracking-wide text-brand-dark/70"
@@ -677,26 +628,29 @@ function RedigeraVaraPage() {
               </div>
             </section>
 
-            <section className={`${panelClass()} space-y-4`}>
-              <div>
-                <p className={sectionKicker()}>Pris</p>
-                <h2 className="mt-1 font-heading text-xl font-bold text-brand-dark">
-                  Snabb prissättning
-                </h2>
-              </div>
-              <label
-                className="block text-xs font-semibold uppercase tracking-wide text-brand-dark/70"
-                htmlFor={priceFieldId}
+            <section
+              className={`${panelClass()} space-y-3`}
+              aria-labelledby={priceSectionHeadingId}
+            >
+              <h2
+                id={priceSectionHeadingId}
+                className="font-heading text-xl font-bold text-brand-dark"
               >
-                Pris (SEK)
-              </label>
-              <div className="grid gap-3 rounded-xl border border-brand-dark/10 bg-brand-bg/70 p-4 sm:grid-cols-[12rem_1fr] sm:items-center">
+                Pris
+              </h2>
+              <div
+                className={`flex min-w-0 items-stretch rounded-lg border shadow-inner shadow-brand-dark/[0.02] transition focus-within:border-brand-dark/40 focus-within:ring-2 focus-within:ring-brand-dark/10 ${
+                  fieldErrors.priceSek
+                    ? 'border-brand-accent'
+                    : 'border-brand-dark/15'
+                } ${disabledForm ? 'bg-brand-dark/5' : 'bg-white'}`}
+              >
                 <input
                   id={priceFieldId}
                   type="text"
                   inputMode="numeric"
                   autoComplete="off"
-                  className="w-full rounded-lg border border-brand-dark/15 bg-white px-3 py-2.5 font-mono text-lg font-semibold tabular-nums text-brand-dark shadow-inner shadow-brand-dark/[0.02] aria-invalid:border-brand-accent"
+                  className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 font-mono text-lg font-semibold tabular-nums text-brand-dark outline-none ring-0 focus:ring-0 disabled:cursor-not-allowed"
                   value={priceSek}
                   onChange={(e) => {
                     setPriceSek(sanitizePriceInput(e.target.value))
@@ -705,23 +659,19 @@ function RedigeraVaraPage() {
                   required
                   disabled={disabledForm}
                   aria-invalid={Boolean(fieldErrors.priceSek)}
+                  aria-labelledby={priceSectionHeadingId}
                   aria-describedby={
-                    fieldErrors.priceSek
-                      ? `${priceFieldId}-hint ${priceFieldId}-err ${priceSliderId}`
-                      : `${priceFieldId}-hint ${priceSliderId}`
+                    fieldErrors.priceSek ? `${priceFieldId}-err` : undefined
                   }
                 />
-                <div className="text-sm text-brand-dark/70">
-                  <span className="font-semibold text-brand-dark">
-                    Snappar till {formatSek(snappedPriceValue)} kr
-                  </span>
-                  <span className="block text-xs">
-                    Skriv valfritt belopp i fältet om varan behöver ett annat
-                    pris.
-                  </span>
-                </div>
+                <span
+                  className="flex select-none items-center pr-3 font-mono text-sm font-medium tabular-nums text-brand-dark/50"
+                  aria-hidden="true"
+                >
+                  kr
+                </span>
               </div>
-              <div className="pt-1">
+              <div>
                 <label className="sr-only" htmlFor={priceSliderId}>
                   Justera pris med reglage
                 </label>
@@ -740,18 +690,10 @@ function RedigeraVaraPage() {
                     setFieldErrors((fe) => ({ ...fe, priceSek: undefined }))
                   }}
                 />
-                <div className="mt-2 flex justify-between font-mono text-[10px] text-brand-dark/50">
-                  {PRICE_TICK_LABELS.map((label) => (
-                    <span key={label}>{formatSek(label)}</span>
-                  ))}
+                <div className="mt-1.5 flex justify-between gap-3 text-xs text-brand-dark/55">
+                  <span>lite</span>
+                  <span>mycket</span>
                 </div>
-                <p
-                  id={`${priceFieldId}-hint`}
-                  className="mt-2 text-xs text-brand-dark/60"
-                >
-                  Reglaget använder fasta steg för vanliga second hand-priser.
-                  Heltal sparas i SEK.
-                </p>
               </div>
               {fieldErrors.priceSek ? (
                 <p
@@ -765,92 +707,19 @@ function RedigeraVaraPage() {
             </section>
 
             <section
-              className={`${panelClass('accent')} space-y-4`}
-              aria-labelledby={catFieldId}
+              className={`${panelClass('accent')} space-y-3`}
+              aria-labelledby={categorySectionHeadingId}
             >
-              <div>
-                <p className={sectionKicker()} id={catFieldId}>
-                  Kategori
-                </p>
-                <h2 className="mt-1 font-heading text-xl font-bold text-brand-dark">
-                  Placera varan rätt
-                </h2>
-                <p className="mt-1 text-sm text-brand-dark/65">
-                  Sök snabbt eller välj i trädet. Underkategori skapas under den
-                  kategori som är vald.
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-brand-dark/10 bg-brand-dark p-4 text-white">
-                <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
-                  Vald kategori
-                </p>
-                <p className="mt-1 text-sm font-semibold">
-                  {selectedPathLabel || 'Ingen kategori vald'}
-                </p>
-              </div>
-
-              {categoryOptions !== undefined ? (
-                <div className="space-y-3">
-                  <label
-                    className="block text-xs font-semibold uppercase tracking-wide text-brand-dark/70"
-                    htmlFor={categorySearchId}
-                  >
-                    Sök kategori
-                  </label>
-                  <input
-                    id={categorySearchId}
-                    type="search"
-                    autoComplete="off"
-                    placeholder="Sök på t.ex. kappa, väska eller porslin"
-                    className={fieldClass()}
-                    value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                    disabled={disabledForm}
-                  />
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {categorySearchRows.length === 0 ? (
-                      <p className="rounded-lg border border-brand-dark/10 bg-brand-bg/70 px-3 py-3 text-sm text-brand-dark/60 sm:col-span-2">
-                        Inga kategorier matchar sökningen.
-                      </p>
-                    ) : (
-                      categorySearchRows.map((o) => (
-                        <button
-                          key={o.id}
-                          type="button"
-                          className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
-                            categoryId === o.id
-                              ? 'border-brand-dark bg-brand-dark text-white shadow-sm'
-                              : 'border-brand-dark/10 bg-white text-brand-dark hover:border-brand-dark/25 hover:bg-brand-dark/5'
-                          }`}
-                          disabled={disabledForm}
-                          onClick={() => {
-                            setCategoryId(o.id)
-                            setFieldErrors((fe) => ({
-                              ...fe,
-                              categoryId: undefined,
-                            }))
-                          }}
-                        >
-                          {o.pathLabel}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-brand-dark/60">
-                  Laddar kategorier …
-                </p>
-              )}
-
+              <h2
+                id={categorySectionHeadingId}
+                className="font-heading text-xl font-bold text-brand-dark"
+              >
+                Kategori
+              </h2>
               {taxonomyTree !== undefined ? (
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-dark/70">
-                    Kategoriträd
-                  </p>
+                <>
                   <TaxonomyTreePicker
-                    className="max-h-72 border-brand-dark/15 bg-brand-bg/60 text-brand-dark"
+                    className="max-h-[min(28rem,55vh)] border-brand-dark/15 bg-brand-bg/60 text-brand-dark"
                     nodes={taxonomyTree}
                     value={categoryId}
                     onChange={(id) => {
@@ -858,61 +727,67 @@ function RedigeraVaraPage() {
                       setFieldErrors((fe) => ({ ...fe, categoryId: undefined }))
                     }}
                     disabled={disabledForm}
+                    editable
+                    onAddChild={(parentId) => {
+                      setAddUnderParentId(parentId)
+                      setAddChildName('')
+                      setTaxonomyCreateError(null)
+                    }}
+                    onDeleteNode={(nodeId) => {
+                      void onDeleteTaxonomyNode(nodeId)
+                    }}
+                    deletingNodeId={deletingCategoryId}
                   />
-                </div>
-              ) : null}
-
-              <div className="rounded-xl border border-brand-dark/10 bg-brand-bg/70 p-3">
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between gap-3 text-left text-sm font-semibold text-brand-dark"
-                  onClick={() => setTaxonomyCreateOpen((open) => !open)}
-                  disabled={disabledForm || !categoryId}
-                  aria-expanded={taxonomyCreateOpen}
-                >
-                  <span>Skapa underkategori under vald kategori</span>
-                  <span className="text-brand-dark/45" aria-hidden>
-                    {taxonomyCreateOpen ? '▾' : '▸'}
-                  </span>
-                </button>
-                {taxonomyCreateOpen ? (
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-                    <label className="min-w-0 flex-1 text-xs font-medium text-brand-dark/70">
-                      Namn på ny underkategori
+                  {addUnderParentId ? (
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-brand-dark/10 bg-brand-bg/50 p-2">
                       <input
                         type="text"
-                        className={fieldClass()}
-                        value={newChildName}
+                        aria-label="Namn på ny underkategori"
+                        className={`${fieldClass({ omitTopMargin: true })} min-w-[10rem] flex-1`}
+                        value={addChildName}
                         onChange={(e) => {
-                          setNewChildName(e.target.value)
+                          setAddChildName(e.target.value)
                           setTaxonomyCreateError(null)
                         }}
-                        disabled={disabledForm || !categoryId}
-                        placeholder="T.ex. Koppel"
+                        disabled={disabledForm}
+                        placeholder="Namn på underkategori"
+                        autoFocus
                       />
-                    </label>
-                    <button
-                      type="button"
-                      className="shrink-0 rounded-lg bg-brand-dark px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-brand-dark/90 disabled:opacity-50"
-                      disabled={
-                        disabledForm ||
-                        !categoryId ||
-                        taxonomyCreateBusy ||
-                        !newChildName.trim()
-                      }
-                      onClick={() => void onCreateTaxonomyChild()}
-                    >
-                      {taxonomyCreateBusy ? 'Skapar…' : 'Skapa & välj'}
-                    </button>
-                  </div>
-                ) : null}
-                {taxonomyCreateError ? (
-                  <p className="mt-1 text-xs text-brand-accent" role="alert">
-                    {taxonomyCreateError}
-                  </p>
-                ) : null}
-              </div>
-
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-lg bg-brand-dark px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-dark/90 disabled:opacity-50"
+                        disabled={
+                          disabledForm ||
+                          taxonomyCreateBusy ||
+                          !addChildName.trim()
+                        }
+                        onClick={() => void onSubmitInlineCategoryChild()}
+                      >
+                        {taxonomyCreateBusy ? 'Skapar…' : 'Skapa'}
+                      </button>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-lg border border-brand-dark/20 px-3 py-2 text-xs font-semibold text-brand-dark hover:bg-brand-dark/5 disabled:opacity-50"
+                        disabled={disabledForm || taxonomyCreateBusy}
+                        onClick={() => {
+                          setAddUnderParentId(null)
+                          setAddChildName('')
+                          setTaxonomyCreateError(null)
+                        }}
+                      >
+                        Avbryt
+                      </button>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-sm text-brand-dark/60">Laddar kategorier …</p>
+              )}
+              {taxonomyCreateError ? (
+                <p className="text-xs text-brand-accent" role="alert">
+                  {taxonomyCreateError}
+                </p>
+              ) : null}
               {fieldErrors.categoryId ? (
                 <p className="text-xs text-brand-accent" role="alert">
                   {fieldErrors.categoryId}
@@ -927,60 +802,6 @@ function RedigeraVaraPage() {
                 disabled={disabledForm}
                 density="compact"
               />
-            </section>
-
-            <section className={`${panelClass()} space-y-3`}>
-              <button
-                type="button"
-                className="flex w-full items-center justify-between gap-2 text-left"
-                onClick={() => setAiSectionOpen((o) => !o)}
-                aria-expanded={aiSectionOpen}
-              >
-                <span>
-                  <span className={sectionKicker()}>
-                    Berika med AI (fritext)
-                  </span>
-                  <span className="ml-2 text-xs font-medium text-brand-dark/55">
-                    {aiSectionOpen ? 'Dölj' : 'Visa'}
-                  </span>
-                </span>
-                <span className="text-brand-dark/40" aria-hidden>
-                  {aiSectionOpen ? '▾' : '▸'}
-                </span>
-              </button>
-              {aiSectionOpen ? (
-                <div className="mt-3 space-y-2 border-t border-brand-dark/8 pt-3">
-                  <p className="text-xs text-brand-dark/60">
-                    Beskriv ändringar, ton, fakta eller skick — AI uppdaterar
-                    varudata. Visningsbilden ändras inte.
-                  </p>
-                  <textarea
-                    id="edit-ai-notes"
-                    className={`${fieldClass()} min-h-24`}
-                    value={enrichNotes}
-                    onChange={(e) => setEnrichNotes(e.target.value)}
-                    disabled={disabledForm}
-                    placeholder="T.ex. lägg till mått i beskrivningen, sänk priset lite, betona vintage-skick …"
-                  />
-                  {enrichError ? (
-                    <p className="text-sm text-brand-accent" role="alert">
-                      {enrichError}
-                    </p>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="inline-flex items-center justify-center rounded-lg border border-brand-dark/25 bg-white px-4 py-2 text-sm font-semibold text-brand-dark shadow-sm transition hover:bg-brand-dark/5 disabled:opacity-60"
-                    disabled={
-                      getProduct.captureStatus === 'processing' ||
-                      enrichBusy ||
-                      saving
-                    }
-                    onClick={() => void onEnrichWithAi()}
-                  >
-                    {enrichBusy ? 'Berikar…' : 'Kör AI-berikning'}
-                  </button>
-                </div>
-              ) : null}
             </section>
           </div>
 
@@ -1046,6 +867,76 @@ function RedigeraVaraPage() {
           </aside>
         </div>
       </form>
+
+      <div
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-brand-dark/10 bg-brand-surface/95 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-6px_28px_rgba(0,0,0,0.07)] backdrop-blur-md supports-[backdrop-filter]:bg-brand-surface/88"
+        role="region"
+        aria-label="Be AI om ändringar"
+      >
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 sm:px-6 lg:px-8">
+          {enrichError ? (
+            <p
+              className="rounded-lg border border-brand-accent/25 bg-brand-accent/10 px-3 py-2 text-xs text-brand-dark"
+              role="alert"
+            >
+              {enrichError}
+            </p>
+          ) : null}
+          <div className="flex items-end gap-2">
+            <label htmlFor={aiDockInputId} className="sr-only">
+              Beskriv vad du vill att AI ska ändra i varan
+            </label>
+            <textarea
+              id={aiDockInputId}
+              rows={2}
+              className="min-h-[2.75rem] max-h-36 min-w-0 flex-1 resize-y rounded-2xl border border-brand-dark/15 bg-white px-4 py-2.5 text-sm text-brand-dark shadow-inner shadow-brand-dark/[0.02] transition placeholder:text-brand-dark/40 focus:border-brand-dark/40 focus:outline-none focus:ring-2 focus:ring-brand-dark/10 disabled:bg-brand-dark/5"
+              value={enrichNotes}
+              onChange={(e) => {
+                setEnrichNotes(e.target.value)
+                setEnrichError(null)
+              }}
+              disabled={disabledForm}
+              placeholder="Be om valfri ändring — pris, text, kategori, attribut …"
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' || e.shiftKey) {
+                  return
+                }
+                if (
+                  disabledForm ||
+                  getProduct.captureStatus === 'processing' ||
+                  enrichBusy ||
+                  saving
+                ) {
+                  return
+                }
+                e.preventDefault()
+                void onEnrichWithAi()
+              }}
+            />
+            <button
+              type="button"
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-dark px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90 disabled:opacity-50"
+              disabled={
+                getProduct.captureStatus === 'processing' ||
+                enrichBusy ||
+                saving ||
+                disabledForm
+              }
+              onClick={() => void onEnrichWithAi()}
+              aria-label={enrichBusy ? 'Berikar' : 'Skicka till AI'}
+            >
+              {enrichBusy ? (
+                <span className="tabular-nums">…</span>
+              ) : (
+                <>
+                  <Send className="size-4" aria-hidden />
+                  <span className="hidden sm:inline">Kör</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
     </main>
   )
 }
