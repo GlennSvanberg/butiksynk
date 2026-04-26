@@ -29,8 +29,14 @@ export const rotateProductDisplayImage = action({
     if (!product?.imageUrl) {
       throw new Error("Produkten eller bilden hittades inte.");
     }
-    if (product.captureStatus === "processing") {
-      throw new Error("Vänta tills AI är klar innan du roterar bilden.");
+    if (
+      product.captureStudioImagePending === true ||
+      (product.captureStatus === "processing" &&
+        product.captureListingReady !== true)
+    ) {
+      throw new Error(
+        "Vänta tills butiksbilden är klar innan du roterar bilden.",
+      );
     }
 
     const res = await fetch(product.imageUrl, {

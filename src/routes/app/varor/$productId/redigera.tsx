@@ -178,55 +178,81 @@ function RedigeraVaraPage() {
     lastSyncedSnapshot.current = snap
   }, [getProduct, taxonomyTree, productId])
 
-  const disabledForm =
-    getProduct?.captureStatus === 'processing' || saving || enrichBusy
+  const listingNotReady =
+    getProduct?.captureStatus === 'processing' &&
+    getProduct?.captureListingReady !== true
+  const studioImagePending = getProduct?.captureStudioImagePending === true
 
-  const imageBlock = getProduct?.imageUrl ? (
-    <div className="space-y-3">
-      <div className="grid min-h-64 place-items-center rounded-xl border border-brand-dark/10 bg-brand-bg/80 p-3">
-        <img
-          src={getProduct.imageUrl}
-          alt=""
-          className="max-h-72 w-auto max-w-full rounded-lg object-contain lg:max-h-[min(54vh,30rem)]"
-        />
-      </div>
-      <p className="text-xs leading-relaxed text-brand-dark/65">
-        EXIF styr bara kamerans rotation — om bilden är tagen med lådan upp och
-        ner behöver du vända här.
-      </p>
-      <div className="grid grid-cols-3 gap-2">
-        <button
-          type="button"
-          className="rounded-lg border border-brand-dark/20 bg-brand-dark px-2.5 py-2 text-xs font-semibold text-white transition hover:bg-brand-dark/90 disabled:opacity-50"
-          disabled={disabledForm || rotateBusy}
-          onClick={() => void onRotate('180')}
-        >
-          Vänd 180°
-        </button>
-        <button
-          type="button"
-          className="rounded-lg border border-brand-dark/20 bg-white px-2.5 py-2 text-xs font-semibold text-brand-dark transition hover:bg-brand-dark/5 disabled:opacity-50"
-          disabled={disabledForm || rotateBusy}
-          onClick={() => void onRotate('cw')}
-        >
-          90° medurs
-        </button>
-        <button
-          type="button"
-          className="rounded-lg border border-brand-dark/20 bg-white px-2.5 py-2 text-xs font-semibold text-brand-dark transition hover:bg-brand-dark/5 disabled:opacity-50"
-          disabled={disabledForm || rotateBusy}
-          onClick={() => void onRotate('ccw')}
-        >
-          90° moturs
-        </button>
-      </div>
-      {rotateBusy ? (
-        <p className="text-xs text-brand-dark/60">Sparar roterad bild …</p>
-      ) : null}
-    </div>
-  ) : (
-    <p className="text-sm text-brand-dark/60">Ingen huvudbild.</p>
+  const disabledForm = Boolean(listingNotReady || saving || enrichBusy)
+  const disabledImageControls = Boolean(
+    studioImagePending || listingNotReady || saving || enrichBusy || rotateBusy,
   )
+
+  const imageBlock =
+    getProduct && studioImagePending ? (
+      <div className="space-y-3">
+        <div className="grid min-h-64 place-items-center rounded-xl border border-brand-dark/10 bg-brand-bg/80 p-6">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div
+              className="size-10 animate-spin rounded-full border-2 border-brand-dark/20 border-t-brand-dark"
+              aria-hidden
+            />
+            <p className="text-sm font-medium text-brand-dark">
+              Skapar butiksbild …
+            </p>
+            <p className="max-w-xs text-xs text-brand-dark/65">
+              Du kan redigera titel, pris och text under tiden. Rotation och ny
+              bild aktiveras när bilden är klar.
+            </p>
+          </div>
+        </div>
+      </div>
+    ) : getProduct?.imageUrl ? (
+      <div className="space-y-3">
+        <div className="grid min-h-64 place-items-center rounded-xl border border-brand-dark/10 bg-brand-bg/80 p-3">
+          <img
+            src={getProduct.imageUrl}
+            alt=""
+            className="max-h-72 w-auto max-w-full rounded-lg object-contain lg:max-h-[min(54vh,30rem)]"
+          />
+        </div>
+        <p className="text-xs leading-relaxed text-brand-dark/65">
+          EXIF styr bara kamerans rotation — om bilden är tagen med lådan upp och
+          ner behöver du vända här.
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-brand-dark/20 bg-brand-dark px-2.5 py-2 text-xs font-semibold text-white transition hover:bg-brand-dark/90 disabled:opacity-50"
+            disabled={disabledImageControls}
+            onClick={() => void onRotate('180')}
+          >
+            Vänd 180°
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-brand-dark/20 bg-white px-2.5 py-2 text-xs font-semibold text-brand-dark transition hover:bg-brand-dark/5 disabled:opacity-50"
+            disabled={disabledImageControls}
+            onClick={() => void onRotate('cw')}
+          >
+            90° medurs
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-brand-dark/20 bg-white px-2.5 py-2 text-xs font-semibold text-brand-dark transition hover:bg-brand-dark/5 disabled:opacity-50"
+            disabled={disabledImageControls}
+            onClick={() => void onRotate('ccw')}
+          >
+            90° moturs
+          </button>
+        </div>
+        {rotateBusy ? (
+          <p className="text-xs text-brand-dark/60">Sparar roterad bild …</p>
+        ) : null}
+      </div>
+    ) : (
+      <p className="text-sm text-brand-dark/60">Ingen huvudbild.</p>
+    )
 
   const onSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -234,8 +260,11 @@ function RedigeraVaraPage() {
       if (!session || !getProduct) {
         return
       }
-      if (getProduct.captureStatus === 'processing') {
-        setError('Vänta tills AI är klar.')
+      if (
+        getProduct.captureStatus === 'processing' &&
+        getProduct.captureListingReady !== true
+      ) {
+        setError('Vänta tills AI-listan är klar.')
         return
       }
       const v = validateEditProductForm({
@@ -287,7 +316,13 @@ function RedigeraVaraPage() {
   )
 
   const onRotate = async (direction: 'cw' | 'ccw' | '180') => {
-    if (!session || !getProduct || getProduct.captureStatus === 'processing') {
+    if (
+      !session ||
+      !getProduct ||
+      getProduct.captureStudioImagePending === true ||
+      (getProduct.captureStatus === 'processing' &&
+        getProduct.captureListingReady !== true)
+    ) {
       return
     }
     setError(null)
@@ -394,8 +429,11 @@ function RedigeraVaraPage() {
     if (!session || !getProduct) {
       return
     }
-    if (getProduct.captureStatus === 'processing') {
-      setEnrichError('Vänta tills AI är klar.')
+    if (
+      getProduct.captureStatus === 'processing' &&
+      getProduct.captureListingReady !== true
+    ) {
+      setEnrichError('Vänta tills AI-listan är klar.')
       return
     }
     const notes = enrichNotes.trim()
@@ -449,7 +487,8 @@ function RedigeraVaraPage() {
   }
 
   const saveDisabled =
-    getProduct.captureStatus === 'processing' ||
+    (getProduct.captureStatus === 'processing' &&
+      getProduct.captureListingReady !== true) ||
     saving ||
     enrichBusy ||
     !categoryId
@@ -463,11 +502,21 @@ function RedigeraVaraPage() {
         ← Tillbaka till varor
       </Link>
 
-      {getProduct.captureStatus === 'processing' ? (
+      {getProduct.captureStatus === 'processing' &&
+      getProduct.captureListingReady !== true ? (
         <div className="mb-3 rounded-lg border border-brand-dark/10 bg-brand-surface/90 p-3 text-sm text-brand-dark/80">
           <p>
-            Varan bearbetas fortfarande av AI. Du kan spara borttagning, men
-            fält kan inte redigeras tills listningen är klar.
+            AI skriver fortfarande titel, pris och beskrivning. Fält låses upp
+            så snart textförslaget finns.
+          </p>
+        </div>
+      ) : null}
+      {getProduct.captureStudioImagePending === true &&
+      getProduct.captureListingReady === true ? (
+        <div className="mb-3 rounded-lg border border-brand-dark/10 bg-brand-surface/90 p-3 text-sm text-brand-dark/80">
+          <p>
+            Butiksbilden skapas fortfarande. Du kan redigera text och spara;
+            rotation och ny huvudbild aktiveras när bilden är klar.
           </p>
         </div>
       ) : null}
@@ -827,7 +876,7 @@ function RedigeraVaraPage() {
                         const f = e.target.files?.[0]
                         void onFile(f)
                       }}
-                      disabled={disabledForm}
+                      disabled={disabledForm || studioImagePending}
                     />
                     {uploadBusy ? (
                       <p className="mt-1 text-xs text-brand-dark/60">
@@ -846,9 +895,14 @@ function RedigeraVaraPage() {
                       AI
                     </dt>
                     <dd className="mt-1 font-medium">
-                      {getProduct.captureStatus === 'processing'
-                        ? 'Bearbetar'
-                        : 'Redo'}
+                      {getProduct.captureStatus === 'error'
+                        ? 'Fel'
+                        : getProduct.captureStatus === 'processing' &&
+                            getProduct.captureListingReady !== true
+                          ? 'Skriver text'
+                          : getProduct.captureStudioImagePending === true
+                            ? 'Skapar bild'
+                            : 'Redo'}
                     </dd>
                   </div>
                   <div className="rounded-lg bg-white p-3">
@@ -903,7 +957,8 @@ function RedigeraVaraPage() {
                 }
                 if (
                   disabledForm ||
-                  getProduct.captureStatus === 'processing' ||
+                  (getProduct.captureStatus === 'processing' &&
+                    getProduct.captureListingReady !== true) ||
                   enrichBusy ||
                   saving
                 ) {
@@ -917,7 +972,8 @@ function RedigeraVaraPage() {
               type="button"
               className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-dark px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90 disabled:opacity-50"
               disabled={
-                getProduct.captureStatus === 'processing' ||
+                (getProduct.captureStatus === 'processing' &&
+                  getProduct.captureListingReady !== true) ||
                 enrichBusy ||
                 saving ||
                 disabledForm

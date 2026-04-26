@@ -70,6 +70,12 @@ export default defineSchema({
       ),
     ),
     captureError: v.optional(v.string()),
+    /** AI-listning (titel/beskrivning/pris/kategori) klar medan studiobild ev. fortfarande körs. */
+    captureListingReady: v.optional(v.boolean()),
+    /** Studiobild (Gemini) pågår eller väntas; UI visar spinner tills false. */
+    captureStudioImagePending: v.optional(v.boolean()),
+    /** Ökas vid ändring av userContext så sena text-regenereringar inte skriver över nyare. */
+    userContextEpoch: v.optional(v.number()),
     /** Sätts när varan säljs; raden behålls för butikens historik och KPI:er. */
     soldAt: v.optional(v.number()),
     /** Pris vid försäljning om det skiljer sig från aktuellt listpris. */

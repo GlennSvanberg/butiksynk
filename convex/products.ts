@@ -300,6 +300,8 @@ export const getProductsQuickReview = query({
           captureStatus: doc.captureStatus,
           captureError: doc.captureError,
           title: doc.title,
+          captureListingReady: doc.captureListingReady,
+          captureStudioImagePending: doc.captureStudioImagePending,
         };
       }),
     );
@@ -325,7 +327,10 @@ export const updateProduct = mutation({
       args.shopId,
     );
     await assertCategoryBelongsToShop(ctx, args.shopId, args.categoryId);
-    if (existing.captureStatus === "processing") {
+    if (
+      existing.captureStatus === "processing" &&
+      existing.captureListingReady !== true
+    ) {
       throw new Error("Vänta tills AI listan är klar innan du redigerar.");
     }
     const categoryId = args.categoryId;
@@ -355,7 +360,10 @@ export const updateProductPrice = mutation({
       args.productId,
       args.shopId,
     );
-    if (existing.captureStatus === "processing") {
+    if (
+      existing.captureStatus === "processing" &&
+      existing.captureListingReady !== true
+    ) {
       throw new Error("Vänta tills AI listan är klar innan du ändrar pris.");
     }
     if (!Number.isFinite(args.priceSek) || args.priceSek < 0) {
@@ -476,8 +484,12 @@ export const applyRotatedProductImage = mutation({
       args.productId,
       args.shopId,
     );
-    if (doc.captureStatus === "processing") {
-      throw new Error("Vänta tills AI listan är klar innan du roterar bilden.");
+    if (
+      doc.captureStudioImagePending === true ||
+      (doc.captureStatus === "processing" &&
+        doc.captureListingReady !== true)
+    ) {
+      throw new Error("Vänta tills butiksbilden är klar innan du roterar bilden.");
     }
     const oldId = doc.imageStorageId;
     if (oldId === args.newImageStorageId) {
@@ -549,6 +561,9 @@ export const createProductFromPhotoCapture = mutation({
       sourceImageStorageId: args.rawImageStorageId,
       userContext: args.userContext,
       captureStatus: "processing",
+      captureListingReady: false,
+      captureStudioImagePending: true,
+      userContextEpoch: 0,
     });
 
     await ctx.scheduler.runAfter(0, internal.productListingAi.runPipeline, {
@@ -556,6 +571,40 @@ export const createProductFromPhotoCapture = mutation({
     });
 
     return productId;
+  },
+});
+
+/** Uppdaterar fritext till AI under inskanning och kör om endast listningstext. */
+export const updateCaptureUserContext = mutation({
+  args: {
+    productId: v.id("products"),
+    shopId: v.id("shops"),
+    userContext: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireShopMembership(ctx, args.shopId);
+    const existing = await requireActiveProductForShop(
+      ctx,
+      args.productId,
+      args.shopId,
+    );
+    if (existing.captureStatus !== "processing") {
+      throw new Error("Varan är inte under inskanning.");
+    }
+    const trimmed = args.userContext.trim();
+    const nextEpoch = (existing.userContextEpoch ?? 0) + 1;
+    await ctx.db.patch("products", args.productId, {
+      userContext: trimmed.length > 0 ? trimmed : undefined,
+      userContextEpoch: nextEpoch,
+    });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.productListingAi.regenerateListingText,
+      {
+        productId: args.productId,
+        expectedUserContextEpoch: nextEpoch,
+      },
+    );
   },
 });
 
@@ -583,11 +632,17 @@ export const getProductForPipeline = internalQuery({
             .unique()
         )?._id ?? null;
     }
-    return { rawImageUrl, shopId, userContext: doc.userContext };
+    return {
+      rawImageUrl,
+      shopId,
+      userContext: doc.userContext,
+      userContextEpoch: doc.userContextEpoch ?? 0,
+    };
   },
 });
 
-export const applyAiListingResult = internalMutation({
+/** Listningstext under pågående capture; sätter captureListingReady. Returnerar om patch kördes. */
+export const applyAiListingTextOnly = internalMutation({
   args: {
     productId: v.id("products"),
     title: v.string(),
@@ -595,13 +650,17 @@ export const applyAiListingResult = internalMutation({
     priceSek: v.number(),
     categoryId: v.id("taxonomyNodes"),
     attributes: v.array(productAttributeValidator),
-    /** Om utelämnad behålls befintlig visningsbild (t.ex. rå butiksbild om Gemini misslyckades). */
-    processedImageStorageId: v.optional(v.id("_storage")),
+    expectedUserContextEpoch: v.number(),
   },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
     const doc = await ctx.db.get("products", args.productId);
     if (!doc || doc.deletedAt !== undefined || doc.captureStatus !== "processing") {
-      return;
+      return false;
+    }
+    const epoch = doc.userContextEpoch ?? 0;
+    if (epoch !== args.expectedUserContextEpoch) {
+      return false;
     }
     await ctx.db.patch("products", args.productId, {
       title: args.title,
@@ -610,11 +669,30 @@ export const applyAiListingResult = internalMutation({
       categoryId: args.categoryId,
       attributes: args.attributes,
       category: undefined,
+      captureListingReady: true,
+    });
+    return true;
+  },
+});
+
+/** Avslutar capture efter studiobild (eller fallback utan ny storage). */
+export const finalizeCaptureStudioImage = internalMutation({
+  args: {
+    productId: v.id("products"),
+    processedImageStorageId: v.optional(v.id("_storage")),
+  },
+  handler: async (ctx, args) => {
+    const doc = await ctx.db.get("products", args.productId);
+    if (!doc || doc.deletedAt !== undefined || doc.captureStatus !== "processing") {
+      return;
+    }
+    await ctx.db.patch("products", args.productId, {
       ...(args.processedImageStorageId !== undefined
         ? { imageStorageId: args.processedImageStorageId }
         : {}),
       captureStatus: "ready",
       captureError: undefined,
+      captureStudioImagePending: false,
     });
   },
 });
@@ -629,10 +707,13 @@ export const markCaptureFailed = internalMutation({
     if (!doc || doc.deletedAt !== undefined || doc.captureStatus !== "processing") {
       return;
     }
+    const keepListing =
+      doc.captureListingReady === true && doc.title !== "Bearbetar…";
     await ctx.db.patch("products", args.productId, {
       captureStatus: "error",
       captureError: args.error,
-      title: doc.title === "Bearbetar…" ? "Kunde inte skapa" : doc.title,
+      captureStudioImagePending: false,
+      title: keepListing ? doc.title : doc.title === "Bearbetar…" ? "Kunde inte skapa" : doc.title,
     });
   },
 });

@@ -1,20 +1,10 @@
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
 import { useShopSession } from '~/lib/shopSession'
-
-type QueueItem = {
-  id: string
-  productId?: string
-  status: 'sending' | 'sent' | 'error'
-  label: string
-  error?: string
-  /** Separate from preview blob; revoked when server image is ready or on cleanup. */
-  localThumbUrl?: string
-}
 
 type CaptureStatus = 'processing' | 'ready' | 'error'
 
@@ -24,18 +14,8 @@ type ServerQuickRow = {
   captureStatus?: CaptureStatus
   captureError?: string
   title: string
-}
-
-function orderedProductIdsFromQueue(q: Array<QueueItem>): Array<Id<'products'>> {
-  const ids: Array<Id<'products'>> = []
-  const seen = new Set<string>()
-  for (const item of q) {
-    if (item.productId && !seen.has(item.productId)) {
-      seen.add(item.productId)
-      ids.push(item.productId as Id<'products'>)
-    }
-  }
-  return ids
+  captureListingReady?: boolean
+  captureStudioImagePending?: boolean
 }
 
 function statusChipClasses(kind: 'upload' | 'ai' | 'ready' | 'error'): string {
@@ -82,12 +62,14 @@ export function AppSnabbListingPage() {
   const createProductFromPhotoCapture = useMutation(
     api.products.createProductFromPhotoCapture,
   )
+  const updateCaptureUserContext = useMutation(api.products.updateCaptureUserContext)
 
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const liveVideoRef = useRef<HTMLVideoElement>(null)
   const activeCameraStreamRef = useRef<MediaStream | null>(null)
   const cameraStartLockRef = useRef(false)
-  const queueRef = useRef<Array<QueueItem>>([])
+  const userContextRef = useRef('')
+  const lastSyncedContextRef = useRef<string | null>(null)
 
   const [inputMode, setInputMode] = useState<'camera' | 'gallery'>('camera')
   const [userContext, setUserContext] = useState('')
@@ -100,92 +82,114 @@ export function AppSnabbListingPage() {
     file: File
     url: string
   } | null>(null)
-  const [queue, setQueue] = useState<Array<QueueItem>>([])
-  const [busy, setBusy] = useState(false)
+  const [activeProductId, setActiveProductId] = useState<Id<'products'> | null>(
+    null,
+  )
+  const [uploadBusy, setUploadBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  queueRef.current = queue
-
-  const productIdsKey = useMemo(() => {
-    const ids: Array<string> = []
-    const seen = new Set<string>()
-    for (const item of queue) {
-      if (item.productId && !seen.has(item.productId)) {
-        seen.add(item.productId)
-        ids.push(item.productId)
-      }
-    }
-    return ids.join('|')
-  }, [queue])
-
-  const productIdsForQuery = useMemo((): Array<Id<'products'>> => {
-    if (!productIdsKey) {
-      return []
-    }
-    return productIdsKey.split('|') as Array<Id<'products'>>
-  }, [productIdsKey])
+  userContextRef.current = userContext
 
   const quickReview = useQuery(
     api.products.getProductsQuickReview,
-    session && productIdsForQuery.length > 0
-      ? { shopId: session.shopId, productIds: productIdsForQuery }
+    session && activeProductId
+      ? { shopId: session.shopId, productIds: [activeProductId] }
       : 'skip',
   )
 
-  const reviewByProductId = useMemo(() => {
-    const m = new Map<string, ServerQuickRow>()
-    if (!quickReview) {
-      return m
-    }
-    for (let i = 0; i < productIdsForQuery.length; i++) {
-      const row = quickReview[i]
-      const id = productIdsForQuery[i]
-      if (row && id) {
-        m.set(id, row)
-      }
-    }
-    return m
-  }, [quickReview, productIdsForQuery, productIdsKey])
+  const serverRow: ServerQuickRow | null | undefined =
+    quickReview && activeProductId ? quickReview[0] ?? null : undefined
 
   useEffect(() => {
-    if (!quickReview?.length) {
+    if (!preview || !session) {
       return
     }
-    setQueue((q) => {
-      const ids = orderedProductIdsFromQueue(q)
-      const toRevoke: Array<string> = []
-      const next = q.map((item) => {
-        if (!item.localThumbUrl || !item.productId) {
-          return item
+
+    let cancelled = false
+    setActiveProductId(null)
+    setUploadBusy(true)
+    setError(null)
+
+    void (async () => {
+      try {
+        const postUrl = await generateUploadUrl({ shopId: session.shopId })
+        if (cancelled) {
+          return
         }
-        const idx = ids.indexOf(item.productId as Id<'products'>)
-        const row = idx >= 0 ? quickReview[idx] : null
-        const imageUrl = row?.imageUrl
-        if (typeof imageUrl === 'string' && imageUrl.length > 0) {
-          toRevoke.push(item.localThumbUrl)
-          return { ...item, localThumbUrl: undefined }
+        const uploadResult = await fetch(postUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': preview.file.type || 'image/jpeg' },
+          body: preview.file,
+        })
+        if (cancelled) {
+          return
         }
-        return item
-      })
-      for (const u of toRevoke) {
-        URL.revokeObjectURL(u)
+        if (!uploadResult.ok) {
+          throw new Error('Uppladdning misslyckades.')
+        }
+        const json = (await uploadResult.json()) as { storageId: string }
+        if (cancelled) {
+          return
+        }
+        const ctxTrim = userContextRef.current.trim()
+        const productId = await createProductFromPhotoCapture({
+          rawImageStorageId: json.storageId as Id<'_storage'>,
+          shopId: session.shopId,
+          userContext: ctxTrim || undefined,
+        })
+        if (!cancelled) {
+          setActiveProductId(productId)
+          lastSyncedContextRef.current = ctxTrim
+        }
+      } catch (e) {
+        if (!cancelled) {
+          const msg =
+            e instanceof Error ? e.message : 'Något gick fel. Försök igen.'
+          setError(msg)
+        }
+      } finally {
+        if (!cancelled) {
+          setUploadBusy(false)
+        }
       }
-      if (toRevoke.length === 0) {
-        return q
-      }
-      return next
-    })
-  }, [quickReview])
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [preview, session, generateUploadUrl, createProductFromPhotoCapture])
 
   useEffect(() => {
-    return () => {
-      for (const item of queueRef.current) {
-        if (item.localThumbUrl) {
-          URL.revokeObjectURL(item.localThumbUrl)
-        }
-      }
+    if (!activeProductId || !session) {
+      return
     }
-  }, [])
+    const trimmed = userContext.trim()
+    if (lastSyncedContextRef.current === trimmed) {
+      return
+    }
+
+    const timer = setTimeout(() => {
+      const t = userContext.trim()
+      if (lastSyncedContextRef.current === t) {
+        return
+      }
+      void updateCaptureUserContext({
+        productId: activeProductId,
+        shopId: session.shopId,
+        userContext,
+      })
+        .then(() => {
+          lastSyncedContextRef.current = t
+        })
+        .catch((e) => {
+          setError(
+            e instanceof Error ? e.message : 'Kunde inte uppdatera kontext.',
+          )
+        })
+    }, 650)
+
+    return () => clearTimeout(timer)
+  }, [userContext, activeProductId, session, updateCaptureUserContext])
 
   const clearPreview = useCallback(() => {
     setPreview((prev) => {
@@ -195,6 +199,17 @@ export function AppSnabbListingPage() {
       return null
     })
   }, [])
+
+  const resetFlow = useCallback(() => {
+    clearPreview()
+    setActiveProductId(null)
+    setUserContext('')
+    lastSyncedContextRef.current = null
+    setError(null)
+    if (galleryInputRef.current) {
+      galleryInputRef.current.value = ''
+    }
+  }, [clearPreview])
 
   const onFileChosen = useCallback(
     (file: File | undefined) => {
@@ -315,85 +330,35 @@ export function AppSnabbListingPage() {
     }
   }, [])
 
-  const sendCurrent = useCallback(async () => {
-    if (!session) {
-      setError('Ingen butik vald.')
-      return
-    }
-    if (!preview) {
-      setError('Välj ett foto först.')
-      return
-    }
-    setError(null)
-    setBusy(true)
-    const id = crypto.randomUUID()
-    const label =
-      preview.file.name || `Foto ${new Date().toLocaleTimeString('sv-SE')}`
-    const localThumbUrl = URL.createObjectURL(preview.file)
-    setQueue((q) =>
-      [
-        {
-          id,
-          status: 'sending' as const,
-          label,
-          localThumbUrl,
-        },
-        ...q,
-      ].slice(0, 20),
-    )
-
-    try {
-      const postUrl = await generateUploadUrl({ shopId: session.shopId })
-      const uploadResult = await fetch(postUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': preview.file.type || 'image/jpeg' },
-        body: preview.file,
-      })
-      if (!uploadResult.ok) {
-        throw new Error('Uppladdning misslyckades.')
+  let statusLabel = ''
+  let statusKind: 'upload' | 'ai' | 'ready' | 'error' = 'upload'
+  if (uploadBusy || (preview && !activeProductId && !error)) {
+    statusLabel = 'Laddar upp och startar AI …'
+    statusKind = 'upload'
+  } else if (activeProductId && serverRow === undefined) {
+    statusLabel = 'Hämtar status …'
+    statusKind = 'upload'
+  } else if (activeProductId && serverRow) {
+    const cap = serverRow.captureStatus
+    if (cap === 'error') {
+      statusLabel = 'Fel'
+      statusKind = 'error'
+    } else if (cap === 'processing') {
+      if (serverRow.captureListingReady === true) {
+        if (serverRow.captureStudioImagePending === true) {
+          statusLabel = 'Text klar · skapar butiksbild …'
+        } else {
+          statusLabel = 'Bearbetar …'
+        }
+      } else {
+        statusLabel = 'AI skriver titel och text …'
       }
-      const json = (await uploadResult.json()) as { storageId: string }
-
-      const productId = await createProductFromPhotoCapture({
-        rawImageStorageId: json.storageId as Id<'_storage'>,
-        shopId: session.shopId,
-        userContext: userContext.trim() || undefined,
-      })
-
-      setQueue((q) =>
-        q.map((item) =>
-          item.id === id
-            ? { ...item, status: 'sent' as const, productId }
-            : item,
-        ),
-      )
-      clearPreview()
-      setUserContext('')
-      if (galleryInputRef.current) {
-        galleryInputRef.current.value = ''
-      }
-    } catch (e) {
-      const msg =
-        e instanceof Error ? e.message : 'Något gick fel. Försök igen.'
-      setQueue((q) =>
-        q.map((item) =>
-          item.id === id
-            ? { ...item, status: 'error' as const, error: msg }
-            : item,
-        ),
-      )
-      setError(msg)
-    } finally {
-      setBusy(false)
+      statusKind = 'ai'
+    } else {
+      statusLabel = 'Klart'
+      statusKind = 'ready'
     }
-  }, [
-    preview,
-    session,
-    userContext,
-    generateUploadUrl,
-    createProductFromPhotoCapture,
-    clearPreview,
-  ])
+  }
 
   if (!session) {
     return (
@@ -402,30 +367,6 @@ export function AppSnabbListingPage() {
       </main>
     )
   }
-
-  const reviewAside =
-    queue.length > 0 ? (
-      <aside className="mt-6 flex min-h-0 flex-col lg:mt-0 lg:max-h-[calc(100vh-5rem)] lg:sticky lg:top-6">
-        <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-brand-dark/8 bg-brand-surface p-4 shadow-sm">
-          <p className="shrink-0 font-mono text-xs font-medium uppercase tracking-wide text-brand-dark/50">
-            Att granska
-          </p>
-          <ul className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto text-sm">
-            {queue.map((item) => (
-              <QueueReviewRow
-                key={item.id}
-                item={item}
-                serverRow={
-                  item.productId
-                    ? reviewByProductId.get(item.productId)
-                    : undefined
-                }
-              />
-            ))}
-          </ul>
-        </div>
-      </aside>
-    ) : null
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
@@ -437,14 +378,14 @@ export function AppSnabbListingPage() {
           Ny vara
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-brand-dark/75">
-          Ta ett foto — AI föreslår titel, pris och text. Fortsätt med fler
-          bilder i rad och följ status till höger (eller nedan på mobil).
-          Öppna en rad när den är klar för att justera innan den syns i
-          butiken.
+          Välj eller ta ett foto — AI börjar direkt i bakgrunden. Du kan fylla i
+          extra information till AI när som helst; ändringar startar om
+          textförslaget. Öppna redigera när du vill granska titel, pris och
+          beskrivning medan butiksbilden färdigställs.
         </p>
       </header>
 
-      <div className="lg:grid lg:grid-cols-[minmax(0,28rem)_1fr] lg:items-start lg:gap-8">
+      <div className="mx-auto flex max-w-xl flex-col gap-4">
         <div className="flex min-w-0 flex-col gap-4 rounded-lg border border-brand-dark/8 bg-brand-surface p-5 shadow-sm">
           {error ? (
             <p
@@ -641,6 +582,11 @@ export function AppSnabbListingPage() {
                   alt=""
                   className="absolute inset-0 size-full object-cover object-center"
                 />
+                {uploadBusy ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-brand-dark/40 text-sm font-medium text-white">
+                    Laddar upp …
+                  </div>
+                ) : null}
               </div>
 
               <div>
@@ -654,42 +600,62 @@ export function AppSnabbListingPage() {
                   id="userContext"
                   value={userContext}
                   onChange={(e) => setUserContext(e.target.value)}
-                  disabled={busy}
-                  placeholder="Skick, detaljer, defekter, märke..."
-                  className="w-full resize-none rounded-lg border border-brand-dark/10 bg-white px-3 py-2 text-sm text-brand-dark placeholder:text-brand-dark/40 focus:border-brand-dark/30 focus:outline-none focus:ring-2 focus:ring-brand-dark/5"
+                  disabled={uploadBusy}
+                  placeholder="Skick, detaljer, defekter, märke…"
+                  className="w-full resize-none rounded-lg border border-brand-dark/10 bg-white px-3 py-2 text-sm text-brand-dark placeholder:text-brand-dark/40 focus:border-brand-dark/30 focus:outline-none focus:ring-2 focus:ring-brand-dark/5 disabled:opacity-60"
                   rows={3}
                 />
               </div>
 
+              {activeProductId && statusLabel ? (
+                <div className="rounded-lg border border-brand-dark/10 bg-brand-bg/80 px-3 py-2.5">
+                  <p className="font-mono text-[10px] font-semibold uppercase tracking-wide text-brand-dark/45">
+                    Status
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex rounded px-1.5 py-0.5 font-mono text-[10px] font-medium ${statusChipClasses(statusKind)}`}
+                    >
+                      {statusLabel}
+                    </span>
+                    {serverRow?.title &&
+                    serverRow.title !== 'Bearbetar…' &&
+                    serverRow.captureStatus !== 'error' ? (
+                      <span className="truncate text-sm text-brand-dark/80">
+                        {serverRow.title}
+                      </span>
+                    ) : null}
+                  </div>
+                  {serverRow?.captureStatus === 'error' &&
+                  serverRow.captureError ? (
+                    <p className="mt-2 text-xs text-brand-accent">
+                      {serverRow.captureError}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="flex flex-wrap gap-2">
+                {activeProductId ? (
+                  <Link
+                    to="/app/varor/$productId/redigera"
+                    params={{ productId: activeProductId }}
+                    className="inline-flex flex-1 items-center justify-center rounded-lg bg-brand-dark px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90"
+                  >
+                    Granska och spara
+                  </Link>
+                ) : null}
                 <button
                   type="button"
-                  disabled={busy}
-                  onClick={() => void sendCurrent()}
-                  className="inline-flex flex-1 items-center justify-center rounded-lg bg-brand-dark px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90 disabled:opacity-60"
-                >
-                  {busy ? 'Skickar…' : 'Lista med AI'}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    clearPreview()
-                    setUserContext('')
-                    if (galleryInputRef.current) {
-                      galleryInputRef.current.value = ''
-                    }
-                  }}
+                  onClick={resetFlow}
                   className="rounded-lg px-4 py-2.5 text-sm font-medium text-brand-dark hover:bg-brand-dark/5"
                 >
-                  Avbryt
+                  {activeProductId ? 'Ny bild' : 'Avbryt'}
                 </button>
               </div>
             </div>
           ) : null}
         </div>
-
-        {reviewAside}
       </div>
 
       <nav className="mt-8 flex flex-col gap-3 text-center text-sm sm:text-left">
@@ -709,123 +675,5 @@ export function AppSnabbListingPage() {
         </Link>
       </nav>
     </main>
-  )
-}
-
-function QueueReviewRow({
-  item,
-  serverRow,
-}: {
-  item: QueueItem
-  serverRow: ServerQuickRow | undefined
-}) {
-  const thumbSrc =
-    serverRow?.imageUrl ?? item.localThumbUrl ?? undefined
-  const titleText =
-    serverRow?.title && serverRow.title !== 'Bearbetar…'
-      ? serverRow.title
-      : item.label
-
-  let statusLabel = ''
-  let statusKind: 'upload' | 'ai' | 'ready' | 'error' = 'upload'
-
-  if (item.status === 'sending') {
-    statusLabel = 'Laddar upp…'
-    statusKind = 'upload'
-  } else if (item.status === 'error' && !item.productId) {
-    statusLabel = 'Fel'
-    statusKind = 'error'
-  } else if (item.productId && serverRow === undefined) {
-    statusLabel = 'Hämtar…'
-    statusKind = 'upload'
-  } else if (item.productId && serverRow) {
-    const cap = serverRow.captureStatus
-    if (cap === 'processing') {
-      statusLabel = 'AI listar…'
-      statusKind = 'ai'
-    } else if (cap === 'error') {
-      statusLabel = 'Fel'
-      statusKind = 'error'
-    } else {
-      statusLabel = 'Redo att granska'
-      statusKind = 'ready'
-    }
-  }
-
-  const canOpenEdit =
-    item.productId &&
-    serverRow &&
-    serverRow.captureStatus !== 'processing' &&
-    serverRow.captureStatus !== 'error'
-
-  const rowInner = (
-    <>
-      <div className="relative size-12 shrink-0 overflow-hidden rounded-md border border-brand-dark/10 bg-brand-bg">
-        {thumbSrc ? (
-          <img
-            src={thumbSrc}
-            alt=""
-            className="absolute inset-0 size-full object-cover object-center"
-          />
-        ) : (
-          <div className="flex size-full items-center justify-center font-mono text-[10px] text-brand-dark/35">
-            …
-          </div>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-brand-dark/90">{titleText}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          <span
-            className={`inline-flex shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium ${statusChipClasses(statusKind)}`}
-          >
-            {statusLabel}
-          </span>
-        </div>
-        {item.status === 'error' && item.error ? (
-          <p className="mt-1 text-xs text-brand-accent">{item.error}</p>
-        ) : null}
-        {serverRow?.captureStatus === 'error' && serverRow.captureError ? (
-          <p className="mt-1 text-xs text-brand-accent">{serverRow.captureError}</p>
-        ) : null}
-      </div>
-      {canOpenEdit ? (
-        <svg
-          className="size-4 shrink-0 self-center text-brand-dark/30"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={2}
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="m8.25 4.5 7.5 7.5-7.5 7.5"
-          />
-        </svg>
-      ) : (
-        <span className="size-4 shrink-0 self-center" aria-hidden />
-      )}
-    </>
-  )
-
-  if (canOpenEdit && item.productId) {
-    return (
-      <li className="overflow-hidden rounded-md bg-brand-bg">
-        <Link
-          to="/app/varor/$productId/redigera"
-          params={{ productId: item.productId }}
-          className="flex items-center gap-3 px-3 py-2 transition hover:bg-brand-dark/5"
-        >
-          {rowInner}
-        </Link>
-      </li>
-    )
-  }
-
-  return (
-    <li className="overflow-hidden rounded-md bg-brand-bg">
-      <div className="flex items-center gap-3 px-3 py-2">{rowInner}</div>
-    </li>
   )
 }

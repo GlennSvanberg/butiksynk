@@ -55,8 +55,11 @@ export const enrichProductFromNotes = action({
     if (!product) {
       throw new Error("Produkten hittades inte.");
     }
-    if (product.captureStatus === "processing") {
-      throw new Error("Vänta tills AI är klar innan du berikar.");
+    if (
+      product.captureStatus === "processing" &&
+      product.captureListingReady !== true
+    ) {
+      throw new Error("Vänta tills AI-listan är klar innan du berikar.");
     }
 
     const openaiKey = process.env.OPENAI_API_KEY;

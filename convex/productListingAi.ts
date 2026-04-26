@@ -405,10 +405,12 @@ export const runPipeline = internalAction({
         return;
       }
 
+      const shopId = meta.shopId;
+
       const taxonomySnapshot: string = await ctx.runQuery(
         internal.taxonomy.getTaxonomySnapshotForAi,
         {
-          shopId: meta.shopId,
+          shopId,
         },
       );
 
@@ -431,13 +433,55 @@ export const runPipeline = internalAction({
 
       const openai = new OpenAI({ apiKey: openaiKey });
 
-      const [listingOutcome, geminiOutcome] = await Promise.allSettled([
-        runOpenAIListing(openai, base64, visionMime, taxonomySnapshot, meta.userContext),
-        runGeminiProductImage(base64, visionMime),
-      ]);
+      /** Starta studiobild direkt; listning väntas och sparas med epoch-retry. */
+      const geminiPromise = runGeminiProductImage(base64, visionMime);
 
-      if (listingOutcome.status === "rejected") {
-        const reason = listingOutcome.reason;
+      type ListingPayload = {
+        title: string;
+        description: string;
+        priceSek: number;
+        categoryId: Id<"taxonomyNodes">;
+        attributes: ReturnType<typeof normalizeAiAttributes>;
+      };
+
+      const listingFromUserContext = async (
+        userContext: string | undefined,
+      ): Promise<ListingPayload> => {
+        const listing = await runOpenAIListing(
+          openai,
+          base64,
+          visionMime,
+          taxonomySnapshot,
+          userContext,
+        );
+        const revalidate = productListingAISchema.safeParse(listing);
+        if (!revalidate.success) {
+          throw new Error("AI-metadata var ogiltig.");
+        }
+        const priceSek = normalizeListingPriceSek(revalidate.data.priceSek);
+        const resolved = await ctx.runMutation(
+          internal.taxonomy.resolveCategoryProposal,
+          {
+            shopId,
+            listingTitleSv: revalidate.data.title,
+            categoryResolution: revalidate.data.categoryResolution,
+          },
+        );
+        const attributes = normalizeAiAttributes(revalidate.data.attributes);
+        return {
+          title: revalidate.data.title,
+          description: revalidate.data.description,
+          priceSek,
+          categoryId: resolved.categoryId,
+          attributes,
+        };
+      };
+
+      const listingOutcome = await Promise.allSettled([
+        listingFromUserContext(meta.userContext),
+      ]);
+      if (listingOutcome[0].status === "rejected") {
+        const reason = listingOutcome[0].reason;
         const message =
           reason instanceof Error
             ? reason.message
@@ -446,26 +490,51 @@ export const runPipeline = internalAction({
         return;
       }
 
-      const listing = listingOutcome.value;
+      let pipelineMeta = meta;
+      let payload = listingOutcome[0].value;
 
-      const revalidate = productListingAISchema.safeParse(listing);
-      if (!revalidate.success) {
-        await fail("AI-metadata var ogiltig.");
+      let textApplied = false;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const epoch = pipelineMeta.userContextEpoch ?? 0;
+        const applied: boolean = await ctx.runMutation(
+          internal.products.applyAiListingTextOnly,
+          {
+            productId: args.productId,
+            title: payload.title,
+            description: payload.description,
+            priceSek: payload.priceSek,
+            categoryId: payload.categoryId,
+            attributes: payload.attributes,
+            expectedUserContextEpoch: epoch,
+          },
+        );
+        if (applied) {
+          textApplied = true;
+          break;
+        }
+        const fresh = await ctx.runQuery(internal.products.getProductForPipeline, {
+          productId: args.productId,
+        });
+        if (!fresh) {
+          return;
+        }
+        pipelineMeta = fresh;
+        try {
+          payload = await listingFromUserContext(fresh.userContext);
+        } catch (e) {
+          const message =
+            e instanceof Error ? e.message : "Okänt fel vid produktdata (OpenAI).";
+          await fail(message);
+          return;
+        }
+      }
+
+      if (!textApplied) {
+        await fail("Listning kunde inte sparas efter uppdaterad kontext.");
         return;
       }
 
-      const priceSek = normalizeListingPriceSek(revalidate.data.priceSek);
-
-      const resolved = await ctx.runMutation(
-        internal.taxonomy.resolveCategoryProposal,
-        {
-          shopId: meta.shopId,
-          listingTitleSv: revalidate.data.title,
-          categoryResolution: revalidate.data.categoryResolution,
-        },
-      );
-
-      const attributes = normalizeAiAttributes(revalidate.data.attributes);
+      const geminiOutcome = (await Promise.allSettled([geminiPromise]))[0];
 
       let geminiCandidate: Buffer | null =
         geminiOutcome.status === "fulfilled" &&
@@ -473,15 +542,6 @@ export const runPipeline = internalAction({
         geminiOutcome.value.length >= 100
           ? geminiOutcome.value
           : null;
-
-      const baseApply = {
-        productId: args.productId,
-        title: revalidate.data.title,
-        description: revalidate.data.description,
-        priceSek,
-        categoryId: resolved.categoryId,
-        attributes,
-      };
 
       /** Efter Gemini: kvadrera → QA → ev. Jimp-rotation eller Gemini om reject. */
       let pngToUpload: Buffer | null = null;
@@ -543,7 +603,9 @@ export const runPipeline = internalAction({
       }
 
       if (!pngToUpload || pngToUpload.length < 100) {
-        await ctx.runMutation(internal.products.applyAiListingResult, baseApply);
+        await ctx.runMutation(internal.products.finalizeCaptureStudioImage, {
+          productId: args.productId,
+        });
         return;
       }
 
@@ -570,8 +632,8 @@ export const runPipeline = internalAction({
         return;
       }
 
-      await ctx.runMutation(internal.products.applyAiListingResult, {
-        ...baseApply,
+      await ctx.runMutation(internal.products.finalizeCaptureStudioImage, {
+        productId: args.productId,
         processedImageStorageId: uploadJson.storageId as Id<"_storage">,
       });
     } catch (e) {
@@ -579,5 +641,95 @@ export const runPipeline = internalAction({
         e instanceof Error ? e.message : "Okänt fel vid AI-bearbetning.";
       await fail(message);
     }
+  },
+});
+
+/** Kör om endast OpenAI-listning när `userContext` ändrats under inskanning. */
+export const regenerateListingText = internalAction({
+  args: {
+    productId: v.id("products"),
+    expectedUserContextEpoch: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!openaiKey) {
+      return;
+    }
+
+    const meta = await ctx.runQuery(internal.products.getProductForPipeline, {
+      productId: args.productId,
+    });
+    if (!meta?.rawImageUrl || !meta.shopId) {
+      return;
+    }
+    const regenShopId = meta.shopId;
+    if ((meta.userContextEpoch ?? 0) !== args.expectedUserContextEpoch) {
+      return;
+    }
+
+    const imageRes = await fetch(meta.rawImageUrl, {
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!imageRes.ok) {
+      return;
+    }
+
+    const arrayBuf = await imageRes.arrayBuffer();
+    const rawBuf = Buffer.from(arrayBuf);
+    const headerMime =
+      imageRes.headers.get("content-type")?.split(";")[0]?.trim() ||
+      "image/jpeg";
+    const { buffer: visionBuf, mimeType: visionMime } =
+      await normalizeImageForVision(rawBuf, headerMime);
+    const base64 = visionBuf.toString("base64");
+
+    const taxonomySnapshot: string = await ctx.runQuery(
+      internal.taxonomy.getTaxonomySnapshotForAi,
+      {
+        shopId: regenShopId,
+      },
+    );
+
+    const openai = new OpenAI({ apiKey: openaiKey });
+    let listing: ProductListingAI;
+    try {
+      listing = await runOpenAIListing(
+        openai,
+        base64,
+        visionMime,
+        taxonomySnapshot,
+        meta.userContext,
+      );
+    } catch {
+      return;
+    }
+
+    const revalidate = productListingAISchema.safeParse(listing);
+    if (!revalidate.success) {
+      return;
+    }
+
+    const priceSek = normalizeListingPriceSek(revalidate.data.priceSek);
+
+    const resolved = await ctx.runMutation(
+      internal.taxonomy.resolveCategoryProposal,
+      {
+        shopId: regenShopId,
+        listingTitleSv: revalidate.data.title,
+        categoryResolution: revalidate.data.categoryResolution,
+      },
+    );
+
+    const attributes = normalizeAiAttributes(revalidate.data.attributes);
+
+    await ctx.runMutation(internal.products.applyAiListingTextOnly, {
+      productId: args.productId,
+      title: revalidate.data.title,
+      description: revalidate.data.description,
+      priceSek,
+      categoryId: resolved.categoryId,
+      attributes,
+      expectedUserContextEpoch: args.expectedUserContextEpoch,
+    });
   },
 });
