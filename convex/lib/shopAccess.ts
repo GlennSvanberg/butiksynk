@@ -23,3 +23,18 @@ export async function requireShopMembership(
   }
   return userId;
 }
+
+/** Butiker den inloggade användaren är medlem i. Tom lista om hen saknar butik. */
+export async function requireMemberShopIds(
+  ctx: AuthCtx,
+): Promise<Array<Id<"shops">>> {
+  const userId = await getAuthUserId(ctx);
+  if (userId === null) {
+    throw new Error("Du måste vara inloggad.");
+  }
+  const links = await ctx.db
+    .query("shopMemberships")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  return links.map((link) => link.shopId);
+}

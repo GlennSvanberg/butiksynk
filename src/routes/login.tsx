@@ -6,13 +6,10 @@ import {
   useNavigate,
   useRouter,
 } from '@tanstack/react-router'
-import { useConvexAuth, useMutation } from 'convex/react'
+import { useAction, useConvexAuth } from 'convex/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as React from 'react'
-import {
-  DEMO_AUTH_EMAIL,
-  DEMO_AUTH_PASSWORD,
-} from '../../shared/shopConstants'
+import { DEMO_AUTH_EMAIL } from '../../shared/shopConstants'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { useShopSession } from '~/lib/shopSession'
@@ -34,6 +31,43 @@ function normalizeAuthEmail(raw: string): string {
   return raw.trim()
 }
 
+function isDemoLoginEmail(raw: string): boolean {
+  return normalizeAuthEmail(raw).trim().toLowerCase() === DEMO_AUTH_EMAIL
+}
+
+function persistDemoSession(tokens: { token: string; refreshToken: string }) {
+  const convexUrl = (import.meta.env as { VITE_CONVEX_URL?: string })
+    .VITE_CONVEX_URL
+  if (!convexUrl) {
+    throw new Error('Convex-adress saknas.')
+  }
+  // Samma nycklar som @convex-dev/auth (namnrymd = Convex-URL).
+  const namespace = convexUrl.replace(/[^a-zA-Z0-9]/g, '')
+  window.localStorage.setItem(`__convexAuthJWT_${namespace}`, tokens.token)
+  window.localStorage.setItem(
+    `__convexAuthRefreshToken_${namespace}`,
+    tokens.refreshToken,
+  )
+  const url = new URL(window.location.href)
+  url.searchParams.delete('demo')
+  window.location.replace(`${url.pathname}${url.search}${url.hash}`)
+}
+
+function readableDemoAuthError(error: unknown): string {
+  const raw =
+    error instanceof Error ? error.message : 'Demoinloggningen misslyckades.'
+  if (raw.includes('Demoinloggning är inte konfigurerad.')) {
+    return 'Demoinloggning är inte konfigurerad.'
+  }
+  if (raw.includes('Demokontot kunde inte öppnas.')) {
+    return 'Demokontot kunde inte öppnas.'
+  }
+  if (raw.includes('Convex-adress saknas.')) {
+    return 'Convex-adress saknas.'
+  }
+  return 'Demoinloggningen misslyckades.'
+}
+
 function LoginPage() {
   const navigate = useNavigate()
   const router = useRouter()
@@ -43,7 +77,7 @@ function LoginPage() {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth()
   const { signIn } = useAuthActions()
 
-  const ensureDemoEnvironment = useMutation(api.taxonomy.ensureDemoEnvironment)
+  const signInDemo = useAction(api.demoAuth.signInDemo)
 
   const { data: myShops = [], isLoading: shopsLoading } = useQuery({
     ...convexQuery(api.shops.listMyShops, {}),
@@ -76,26 +110,17 @@ function LoginPage() {
     }
     demoAutologinStarted.current = true
     const run = async () => {
-      const fdIn = new FormData()
-      fdIn.set('email', DEMO_AUTH_EMAIL)
-      fdIn.set('password', DEMO_AUTH_PASSWORD)
-      fdIn.set('flow', 'signIn')
-      try {
-        await signIn('password', fdIn)
-      } catch {
-        const fdUp = new FormData()
-        fdUp.set('email', DEMO_AUTH_EMAIL)
-        fdUp.set('password', DEMO_AUTH_PASSWORD)
-        fdUp.set('flow', 'signUp')
-        await signIn('password', fdUp)
-      }
+      const tokens = await signInDemo({})
+      persistDemoSession(tokens)
     }
-    void run().catch(console.error)
+    void run().catch((err: unknown) => {
+      setError(readableDemoAuthError(err))
+    })
   }, [
     authLoading,
     isAuthenticated,
     shouldAutoDemoLogin,
-    signIn,
+    signInDemo,
   ])
 
   React.useEffect(() => {
@@ -110,7 +135,6 @@ function LoginPage() {
       shopName: string
       shopSlug: string
     }) => {
-      await ensureDemoEnvironment({}).catch(console.error)
       await queryClient.invalidateQueries()
       setSession({
         shopId: picked.shopId,
@@ -121,7 +145,7 @@ function LoginPage() {
       const to = redirect && redirect.startsWith('/app') ? redirect : '/app'
       void navigate({ to })
     },
-    [ensureDemoEnvironment, navigate, queryClient, redirect, router, setSession],
+    [navigate, queryClient, redirect, router, setSession],
   )
 
   React.useEffect(() => {
@@ -153,15 +177,24 @@ function LoginPage() {
     e.preventDefault()
     setError(null)
     setBusy(true)
-    const fd = new FormData()
-    fd.set('email', normalizeAuthEmail(email))
-    fd.set('password', password)
-    fd.set('flow', flowMode)
+    const normalizedEmail = normalizeAuthEmail(email)
     try {
+      if (isDemoLoginEmail(normalizedEmail)) {
+        const tokens = await signInDemo({})
+        persistDemoSession(tokens)
+        return
+      }
+      const fd = new FormData()
+      fd.set('email', normalizedEmail)
+      fd.set('password', password)
+      fd.set('flow', flowMode)
       await signIn('password', fd)
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Inloggningen misslyckades.'
+      const msg = isDemoLoginEmail(normalizedEmail)
+        ? readableDemoAuthError(err)
+        : err instanceof Error
+          ? err.message
+          : 'Inloggningen misslyckades.'
       setError(msg)
     } finally {
       setBusy(false)
@@ -305,11 +338,9 @@ function LoginPage() {
           {flowMode === 'signIn' ? 'Logga in' : 'Skapa konto'}
         </h1>
         <p className="mt-2 text-sm text-brand-dark/75">
-          Använd e-post och lösenord. Demokonto: skriv{' '}
-          <span className="font-mono">demo</span> som e-post och{' '}
-          <span className="font-mono">demo</span> som lösenord (mappas till{' '}
-          <span className="font-mono">{DEMO_AUTH_EMAIL}</span>). Vill du slippa
-          formuläret helt kan du öppna{' '}
+          Använd e-post och lösenord. Skriv{' '}
+          <span className="font-mono">demo</span> som e-post för att öppna
+          exempelbutiken. Saknas demokontot skapas det då, liksom via{' '}
           <span className="font-mono">/login?demo=1</span>.
         </p>
 

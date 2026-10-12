@@ -1,4 +1,3 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import {
   internalMutation,
@@ -532,45 +531,53 @@ function migrateLegacyAttribute(a: LegacyAttr): ProductAttribute {
   };
 }
 
-export const ensureDemoEnvironment = mutation({
+/**
+ * Intern, idempotent hjälp för exempelbutiken. Rör bara rader med demobutikens
+ * shopId. Anropas inte vid inloggning. Körs från Convex-dashboarden vid behov.
+ */
+export const ensureDemoEnvironment = internalMutation({
   args: {},
+  returns: v.object({ shopId: v.id("shops") }),
   handler: async (ctx) => {
-    if ((await getAuthUserId(ctx)) === null) {
-      throw new Error("Du måste vara inloggad.");
-    }
     const shopId = await getOrCreateDefaultShopId(ctx);
     await ensureRootStructure(ctx, shopId);
 
-    const products = await ctx.db.query("products").collect();
+    const products = await ctx.db
+      .query("products")
+      .withIndex("by_shop", (q) => q.eq("shopId", shopId))
+      .collect();
+
     for (const p of products) {
-      if (p.captureStatus === "processing") {
+      if (p.shopId !== shopId || p.captureStatus === "processing") {
         continue;
       }
 
-      const patch: Record<string, unknown> = {};
-
-      if (!p.shopId) {
-        patch.shopId = shopId;
-      }
+      const patch: {
+        categoryId?: Id<"taxonomyNodes">;
+        attributes?: Array<ProductAttribute>;
+        category?: undefined;
+      } = {};
 
       const legacyCategory =
-        "category" in p &&
-        typeof (p as { category?: string }).category === "string"
-          ? (p as { category?: string }).category
-          : undefined;
+        typeof p.category === "string" ? p.category : undefined;
 
-      if (!p.categoryId) {
+      if (p.categoryId === undefined) {
         const label =
           legacyCategory && legacyCategory !== "—"
             ? legacyCategory
             : "Ny kategori";
-        const leafId = await findOrCreateLeafUnderSortiment(ctx, shopId, label);
-        patch.categoryId = leafId;
+        patch.categoryId = await findOrCreateLeafUnderSortiment(
+          ctx,
+          shopId,
+          label,
+        );
       }
 
       const attrs = p.attributes as Array<unknown>;
       if (attrs.length > 0 && isLegacyAttribute(attrs[0])) {
-        patch.attributes = (attrs as Array<LegacyAttr>).map(migrateLegacyAttribute);
+        patch.attributes = (attrs as Array<LegacyAttr>).map(
+          migrateLegacyAttribute,
+        );
       }
 
       if (legacyCategory !== undefined) {
@@ -578,7 +585,7 @@ export const ensureDemoEnvironment = mutation({
       }
 
       if (Object.keys(patch).length > 0) {
-        await ctx.db.patch("products", p._id, patch as never);
+        await ctx.db.patch("products", p._id, patch);
       }
     }
 

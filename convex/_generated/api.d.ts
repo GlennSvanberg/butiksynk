@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as crons from "../crons.js";
+import type * as demoAuth from "../demoAuth.js";
 import type * as http from "../http.js";
 import type * as lib_newShopFromSignup from "../lib/newShopFromSignup.js";
 import type * as lib_normalizeAiAttributes from "../lib/normalizeAiAttributes.js";
@@ -19,7 +20,6 @@ import type * as lib_shopAccess from "../lib/shopAccess.js";
 import type * as lib_shopBranding from "../lib/shopBranding.js";
 import type * as lib_shops from "../lib/shops.js";
 import type * as lib_slugify from "../lib/slugify.js";
-import type * as myFunctions from "../myFunctions.js";
 import type * as productEnrichFromNotes from "../productEnrichFromNotes.js";
 import type * as productImageRotate from "../productImageRotate.js";
 import type * as productListingAi from "../productListingAi.js";
@@ -36,6 +36,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   crons: typeof crons;
+  demoAuth: typeof demoAuth;
   http: typeof http;
   "lib/newShopFromSignup": typeof lib_newShopFromSignup;
   "lib/normalizeAiAttributes": typeof lib_normalizeAiAttributes;
@@ -45,7 +46,6 @@ declare const fullApi: ApiFromModules<{
   "lib/shopBranding": typeof lib_shopBranding;
   "lib/shops": typeof lib_shops;
   "lib/slugify": typeof lib_slugify;
-  myFunctions: typeof myFunctions;
   productEnrichFromNotes: typeof productEnrichFromNotes;
   productImageRotate: typeof productImageRotate;
   productListingAi: typeof productListingAi;

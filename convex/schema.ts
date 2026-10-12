@@ -14,10 +14,6 @@ export default defineSchema({
     .index("by_shop", ["shopId"])
     .index("by_user_and_shop", ["userId", "shopId"]),
 
-  numbers: defineTable({
-    value: v.number(),
-  }),
-
   shops: defineTable({
     name: v.string(),
     slug: v.string(),
@@ -50,7 +46,7 @@ export default defineSchema({
     title: v.string(),
     description: v.string(),
     priceSek: v.number(),
-    /** Deprecated; removed after ensureDemoEnvironment migrates legacy rows */
+    /** Legacy visningsetikett. Nya varor använder categoryId. */
     category: v.optional(v.string()),
     shopId: v.optional(v.id("shops")),
     categoryId: v.optional(v.id("taxonomyNodes")),

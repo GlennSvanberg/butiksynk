@@ -7,7 +7,5 @@ export const DEMO_SHOP_SLUG = 'demo'
  */
 export const DEMO_SHOWCASE_PRODUCT_ID: string | undefined = undefined
 
-/** Inloggning för demokonto (lösenord i klienten för autoinloggning). */
+/** E-post för demokontot. Lösenordet finns bara i serverns miljö, inte i klienten. */
 export const DEMO_AUTH_EMAIL = 'demo@selio.local'
-
-export const DEMO_AUTH_PASSWORD = 'demo'
