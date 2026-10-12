@@ -32,7 +32,9 @@ export function getRouter() {
       context: { queryClient },
       scrollRestoration: true,
       defaultPreloadStaleTime: 0, // Let React Query handle all caching
-      defaultErrorComponent: (err) => <p>{err.error.stack}</p>,
+      defaultErrorComponent: ({ error }) => (
+        <p>{error instanceof Error ? error.stack : String(error)}</p>
+      ),
       defaultNotFoundComponent: () => <p>Sidan hittades inte</p>,
       Wrap: ({ children }) => (
         <ConvexAuthProvider client={convexQueryClient.convexClient}>
