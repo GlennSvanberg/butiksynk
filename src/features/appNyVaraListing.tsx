@@ -106,6 +106,7 @@ export function AppSnabbListingPage() {
     }
 
     let cancelled = false
+    const isCancelled = (): boolean => cancelled
     setActiveProductId(null)
     setUploadBusy(true)
     setError(null)
@@ -113,7 +114,7 @@ export function AppSnabbListingPage() {
     void (async () => {
       try {
         const postUrl = await generateUploadUrl({ shopId: session.shopId })
-        if (cancelled) {
+        if (isCancelled()) {
           return
         }
         const uploadResult = await fetch(postUrl, {
@@ -121,14 +122,14 @@ export function AppSnabbListingPage() {
           headers: { 'Content-Type': preview.file.type || 'image/jpeg' },
           body: preview.file,
         })
-        if (cancelled) {
+        if (isCancelled()) {
           return
         }
         if (!uploadResult.ok) {
           throw new Error('Uppladdning misslyckades.')
         }
         const json = (await uploadResult.json()) as { storageId: string }
-        if (cancelled) {
+        if (isCancelled()) {
           return
         }
         const ctxTrim = userContextRef.current.trim()
@@ -137,18 +138,18 @@ export function AppSnabbListingPage() {
           shopId: session.shopId,
           userContext: ctxTrim || undefined,
         })
-        if (!cancelled) {
+        if (!isCancelled()) {
           setActiveProductId(productId)
           lastSyncedContextRef.current = ctxTrim
         }
       } catch (e) {
-        if (!cancelled) {
+        if (!isCancelled()) {
           const msg =
             e instanceof Error ? e.message : 'Något gick fel. Försök igen.'
           setError(msg)
         }
       } finally {
-        if (!cancelled) {
+        if (!isCancelled()) {
           setUploadBusy(false)
         }
       }

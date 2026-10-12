@@ -12,7 +12,10 @@ import {
   productAttributeValidator,
   storedProductAttributeValidator,
 } from "./lib/productAttributes";
-import { requireShopMembership } from "./lib/shopAccess";
+import {
+  requireMemberShopIds,
+  requireShopMembership,
+} from "./lib/shopAccess";
 import {
   loadTaxonomyNodesByShop,
   pathSearchBlobFromTaxonomyMap,
@@ -133,26 +136,77 @@ async function enrichProductDoc(
   };
 }
 
+const publicStorefrontProductValidator = v.object({
+  _id: v.id("products"),
+  title: v.string(),
+  description: v.string(),
+  priceSek: v.number(),
+  attributes: v.array(storedProductAttributeValidator),
+  categoryId: v.optional(v.id("taxonomyNodes")),
+  category: v.optional(v.string()),
+  categoryPathSegments: v.array(v.string()),
+  imageUrl: v.union(v.string(), v.null()),
+  sourceImageUrl: v.union(v.string(), v.null()),
+});
+
+type PublicStorefrontProduct = {
+  _id: Id<"products">;
+  title: string;
+  description: string;
+  priceSek: number;
+  attributes: Doc<"products">["attributes"];
+  categoryId?: Id<"taxonomyNodes">;
+  category?: string;
+  categoryPathSegments: Array<string>;
+  imageUrl: string | null;
+  sourceImageUrl: string | null;
+};
+
+/** Fält kundbutiken får se. Personalens fritext och AI-status stannar i verktyget. */
+async function toPublicStorefrontProduct(
+  ctx: QueryCtx,
+  doc: Doc<"products">,
+  taxonomyById?: TaxonomyNodeByIdMap,
+): Promise<PublicStorefrontProduct> {
+  const enriched = await enrichProductDoc(ctx, doc, taxonomyById);
+  const product: PublicStorefrontProduct = {
+    _id: enriched._id,
+    title: enriched.title,
+    description: enriched.description,
+    priceSek: enriched.priceSek,
+    attributes: enriched.attributes,
+    categoryPathSegments: enriched.categoryPathSegments,
+    imageUrl: enriched.imageUrl,
+    sourceImageUrl: enriched.sourceImageUrl,
+  };
+  if (enriched.categoryId !== undefined) {
+    product.categoryId = enriched.categoryId;
+  }
+  if (typeof enriched.category === "string") {
+    product.category = enriched.category;
+  }
+  return product;
+}
+
 export const listProducts = query({
   args: {},
   handler: async (ctx) => {
-    if ((await getAuthUserId(ctx)) === null) {
-      throw new Error("Du måste vara inloggad.");
-    }
-    const docs = await ctx.db
-      .query("products")
-      .order("desc")
-      .collect();
-    const active = docs.filter(isActiveProduct);
+    const shopIds = await requireMemberShopIds(ctx);
+    const active: Array<Doc<"products">> = [];
     const taxonomyByShop = new Map<Id<"shops">, TaxonomyNodeByIdMap>();
-    for (const doc of active) {
-      if (doc.shopId !== undefined && !taxonomyByShop.has(doc.shopId)) {
-        taxonomyByShop.set(
-          doc.shopId,
-          await loadTaxonomyNodesByShop(ctx, doc.shopId),
-        );
+    for (const shopId of shopIds) {
+      const docs = await ctx.db
+        .query("products")
+        .withIndex("by_shop", (q) => q.eq("shopId", shopId))
+        .collect();
+      for (const doc of docs) {
+        if (isActiveProduct(doc) && doc.shopId === shopId) {
+          active.push(doc);
+        }
       }
+      taxonomyByShop.set(shopId, await loadTaxonomyNodesByShop(ctx, shopId));
     }
+    active.sort((a, b) => b._creationTime - a._creationTime);
     return Promise.all(
       active.map((doc) =>
         enrichProductDoc(
@@ -230,8 +284,11 @@ export const listProductsForPublicStorefront = query({
       });
     }
 
-    return Promise.all(docs.map((doc) => enrichProductDoc(ctx, doc, taxonomyById)));
+    return Promise.all(
+      docs.map((doc) => toPublicStorefrontProduct(ctx, doc, taxonomyById)),
+    );
   },
+  returns: v.array(publicStorefrontProductValidator),
 });
 
 export const getProductForPublicStorefront = query({
@@ -256,8 +313,9 @@ export const getProductForPublicStorefront = query({
       return null;
     }
     const taxonomyById = await loadTaxonomyNodesByShop(ctx, shop._id);
-    return enrichProductDoc(ctx, doc, taxonomyById);
+    return await toPublicStorefrontProduct(ctx, doc, taxonomyById);
   },
+  returns: v.union(publicStorefrontProductValidator, v.null()),
 });
 
 export const getProductForEdit = query({

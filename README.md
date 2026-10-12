@@ -54,7 +54,9 @@ npm start
 
 | Command        | Description                                      |
 | -------------- | ------------------------------------------------ |
+| `npm run typecheck` | Typecheck with `tsc`                        |
 | `npm run lint` | Typecheck and ESLint                             |
+| `npm run test` | Vitest (shop tenancy and public field whitelist) |
 | `npm run format` | Format with Prettier                           |
 
 ## More in the repo

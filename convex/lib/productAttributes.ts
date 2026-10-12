@@ -114,7 +114,7 @@ export const productAttributeValidator = v.union(
 
 /**
  * Pre-migration rows used `{ label, value }` without `key`/`type`.
- * Allowed on stored documents until `ensureDemoEnvironment` rewrites them.
+ * Allowed on stored documents. The internal demo job rewrites only the demo shop.
  */
 export const legacyProductAttributeValidator = v.object({
   label: v.string(),

@@ -11,6 +11,7 @@ import {
 import { requireShopMembership } from "./lib/shopAccess";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import type { QueryCtx } from "./_generated/server";
 
 export { DEMO_SHOP_SLUG };
 
@@ -72,14 +73,85 @@ export const bootstrapViewerShopSession = query({
   },
 });
 
+const publicShopValidator = v.object({
+  slug: v.string(),
+  displayName: v.string(),
+  contactEmail: v.optional(v.string()),
+  contactPhone: v.optional(v.string()),
+  contactWebsite: v.optional(v.string()),
+  contactNote: v.optional(v.string()),
+  storefrontColorPrimary: v.optional(v.string()),
+  storefrontColorAccent: v.optional(v.string()),
+  storefrontColorBackground: v.optional(v.string()),
+  storefrontColorSurface: v.optional(v.string()),
+  logoUrl: v.union(v.string(), v.null()),
+});
+
+type PublicShop = {
+  slug: string;
+  displayName: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  contactWebsite?: string;
+  contactNote?: string;
+  storefrontColorPrimary?: string;
+  storefrontColorAccent?: string;
+  storefrontColorBackground?: string;
+  storefrontColorSurface?: string;
+  logoUrl: string | null;
+};
+
+async function publicShopBySlug(
+  ctx: QueryCtx,
+  slug: string,
+): Promise<PublicShop | null> {
+  const shop = await ctx.db
+    .query("shops")
+    .withIndex("by_slug", (q) => q.eq("slug", slug))
+    .unique();
+  if (!shop) {
+    return null;
+  }
+  const logoUrl = shop.logoStorageId
+    ? await ctx.storage.getUrl(shop.logoStorageId)
+    : null;
+  const publicShop: PublicShop = {
+    slug: shop.slug,
+    displayName: shop.storefrontDisplayName?.trim() || shop.name,
+    logoUrl,
+  };
+  if (shop.contactEmail !== undefined) {
+    publicShop.contactEmail = shop.contactEmail;
+  }
+  if (shop.contactPhone !== undefined) {
+    publicShop.contactPhone = shop.contactPhone;
+  }
+  if (shop.contactWebsite !== undefined) {
+    publicShop.contactWebsite = shop.contactWebsite;
+  }
+  if (shop.contactNote !== undefined) {
+    publicShop.contactNote = shop.contactNote;
+  }
+  if (shop.storefrontColorPrimary !== undefined) {
+    publicShop.storefrontColorPrimary = shop.storefrontColorPrimary;
+  }
+  if (shop.storefrontColorAccent !== undefined) {
+    publicShop.storefrontColorAccent = shop.storefrontColorAccent;
+  }
+  if (shop.storefrontColorBackground !== undefined) {
+    publicShop.storefrontColorBackground = shop.storefrontColorBackground;
+  }
+  if (shop.storefrontColorSurface !== undefined) {
+    publicShop.storefrontColorSurface = shop.storefrontColorSurface;
+  }
+  return publicShop;
+}
+
 export const getBySlug = query({
   args: { slug: v.string() },
+  returns: v.union(publicShopValidator, v.null()),
   handler: async (ctx, args) => {
-    const shop = await ctx.db
-      .query("shops")
-      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
-      .unique();
-    return shop;
+    return await publicShopBySlug(ctx, args.slug);
   },
 });
 
@@ -101,30 +173,9 @@ function brandingFromShopDoc(shop: Doc<"shops">) {
 /** Publik butikspresentation (tema + kontakt + logga-URL). */
 export const getStorefrontBrandingBySlug = query({
   args: { slug: v.string() },
+  returns: v.union(publicShopValidator, v.null()),
   handler: async (ctx, args) => {
-    const shop = await ctx.db
-      .query("shops")
-      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
-      .unique();
-    if (!shop) {
-      return null;
-    }
-    const logoUrl = shop.logoStorageId
-      ? await ctx.storage.getUrl(shop.logoStorageId)
-      : null;
-    return {
-      slug: shop.slug,
-      displayName: shop.storefrontDisplayName?.trim() || shop.name,
-      contactEmail: shop.contactEmail,
-      contactPhone: shop.contactPhone,
-      contactWebsite: shop.contactWebsite,
-      contactNote: shop.contactNote,
-      storefrontColorPrimary: shop.storefrontColorPrimary,
-      storefrontColorAccent: shop.storefrontColorAccent,
-      storefrontColorBackground: shop.storefrontColorBackground,
-      storefrontColorSurface: shop.storefrontColorSurface,
-      logoUrl,
-    };
+    return await publicShopBySlug(ctx, args.slug);
   },
 });
 
@@ -330,43 +381,5 @@ export const generateStorefrontLogoUploadUrl = mutation({
       throw new Error("Butiken hittades inte.");
     }
     return await ctx.storage.generateUploadUrl();
-  },
-});
-
-/**
- * Idempotent: skapar demosbutik om den saknas och sätter shopId på produkter utan butik.
- * Anropas från klienten vid behov (t.ex. innan exempelbutiken) så befintliga deployment får data.
- */
-export const ensureDemoShopAndBackfill = mutation({
-  args: {},
-  handler: async (ctx) => {
-    if ((await getAuthUserId(ctx)) === null) {
-      throw new Error("Du måste vara inloggad.");
-    }
-    let demo = await ctx.db
-      .query("shops")
-      .withIndex("by_slug", (q) => q.eq("slug", DEMO_SHOP_SLUG))
-      .unique();
-
-    if (!demo) {
-      const id = await ctx.db.insert("shops", {
-        name: "Exempelbutik",
-        slug: DEMO_SHOP_SLUG,
-      });
-      demo = await ctx.db.get("shops", id);
-    }
-
-    if (!demo) {
-      throw new Error("Kunde inte skapa eller läsa demosbutik.");
-    }
-
-    const products = await ctx.db.query("products").collect();
-    for (const p of products) {
-      if (p.shopId === undefined) {
-        await ctx.db.patch("products", p._id, { shopId: demo._id });
-      }
-    }
-
-    return { demoShopId: demo._id };
   },
 });

@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import {
   ATTRIBUTE_LABEL_SV,
   COMMON_UNITS,
@@ -10,7 +11,6 @@ import type {
   NumberAttributeKey,
   TextAttributeKey,
 } from '../../shared/attributes'
-import { useId } from 'react'
 import type { StoredProductAttribute } from '~/lib/editProductForm'
 
 const ROW_KIND_LEGACY = 'legacy'
