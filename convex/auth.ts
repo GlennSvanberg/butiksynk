@@ -1,8 +1,7 @@
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
-import { DEMO_AUTH_EMAIL } from "../shared/shopConstants";
+import { ensureDemoShopForUser, isDemoAuthEmail } from "./lib/demoShop";
 import { createShopForNewUser } from "./lib/newShopFromSignup";
-import { getOrCreateDefaultShopId } from "./lib/shops";
 import { ensureRootStructure } from "./taxonomy";
 import type { MutationCtx } from "./_generated/server";
 
@@ -24,23 +23,15 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           ? profile.email.trim().toLowerCase()
           : "";
 
+      if (isDemoAuthEmail(email)) {
+        await ensureDemoShopForUser(ctx, userId);
+        return;
+      }
+
       const memberships = await ctx.db
         .query("shopMemberships")
         .withIndex("by_user", (q) => q.eq("userId", userId))
         .collect();
-
-      if (email === DEMO_AUTH_EMAIL.toLowerCase()) {
-        const demoShopId = await getOrCreateDefaultShopId(ctx);
-        const hasDemo = memberships.some((m) => m.shopId === demoShopId);
-        if (!hasDemo) {
-          await ctx.db.insert("shopMemberships", {
-            userId,
-            shopId: demoShopId,
-          });
-        }
-        await ensureRootStructure(ctx, demoShopId);
-        return;
-      }
 
       if (memberships.length > 0) {
         return;

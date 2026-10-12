@@ -1,7 +1,8 @@
 import { v } from "convex/values";
 import { DEMO_AUTH_EMAIL } from "../shared/shopConstants";
-import { api } from "./_generated/api";
-import { action } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import { action, internalMutation } from "./_generated/server";
+import { ensureDemoShopForUser } from "./lib/demoShop";
 import type { ActionCtx } from "./_generated/server";
 
 const demoTokensValidator = v.object({
@@ -21,8 +22,13 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
-function isInvalidCredentials(error: unknown): boolean {
-  return errorMessage(error).toLowerCase().includes("invalid credentials");
+/** Saknat lösenordskonto. Fel lösenord (`InvalidSecret`) ska inte tolkas som saknat. */
+export function isMissingDemoAccount(error: unknown): boolean {
+  const message = errorMessage(error);
+  return (
+    message.includes("InvalidAccountId") ||
+    message.toLowerCase().includes("invalid credentials")
+  );
 }
 
 function readTokens(result: unknown): DemoTokens | null {
@@ -60,10 +66,73 @@ async function signInWithFlow(
   return readTokens(result);
 }
 
+async function openOrCreateDemoAccount(
+  ctx: ActionCtx,
+  password: string,
+): Promise<DemoTokens> {
+  try {
+    const existing = await signInWithFlow(ctx, password, "signIn");
+    if (existing) {
+      return existing;
+    }
+  } catch (error) {
+    if (!isMissingDemoAccount(error)) {
+      console.error("Demoinloggning misslyckades", errorMessage(error));
+      throw new Error("Demokontot kunde inte öppnas.");
+    }
+  }
+
+  try {
+    const created = await signInWithFlow(ctx, password, "signUp");
+    if (created) {
+      return created;
+    }
+  } catch (error) {
+    const message = errorMessage(error);
+    if (message.toLowerCase().includes("already exists")) {
+      try {
+        const retry = await signInWithFlow(ctx, password, "signIn");
+        if (retry) {
+          return retry;
+        }
+      } catch (retryError) {
+        console.error("Demoinloggning misslyckades", errorMessage(retryError));
+        throw new Error("Demokontot kunde inte öppnas.");
+      }
+    } else {
+      console.error("Demoregistrering misslyckades", message);
+      throw new Error("Demokontot kunde inte öppnas.");
+    }
+  }
+
+  throw new Error("Demokontot kunde inte öppnas.");
+}
+
+/**
+ * Ser till att demokontot har exempelbutik och medlemskap,
+ * även när kontot redan fanns och inloggningen inte skapar användaren på nytt.
+ */
+export const ensureDemoShopForAccount = internalMutation({
+  args: {},
+  returns: v.id("shops"),
+  handler: async (ctx) => {
+    const account = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) =>
+        q.eq("provider", "password").eq("providerAccountId", DEMO_AUTH_EMAIL),
+      )
+      .unique();
+    if (!account) {
+      throw new Error("Demokontot saknas.");
+    }
+    return await ensureDemoShopForUser(ctx, account.userId);
+  },
+});
+
 /**
  * Öppnar demokontot utan att lösenordet finns i klienten.
- * Kräver `DEMO_AUTH_PASSWORD` i Convex-miljön. Samma lösenord som kontot
- * `demo@selio.local` redan har.
+ * Skapar `demo@selio.local` med `DEMO_AUTH_PASSWORD` om kontot saknas,
+ * och exempelbutiken plus medlemskapet om de saknas. Säkert att köra igen.
  */
 export const signInDemo = action({
   args: {},
@@ -74,30 +143,8 @@ export const signInDemo = action({
       throw new Error("Demoinloggning är inte konfigurerad.");
     }
 
-    try {
-      const existing = await signInWithFlow(ctx, password, "signIn");
-      if (existing) {
-        return existing;
-      }
-    } catch (error) {
-      if (!isInvalidCredentials(error)) {
-        console.error("Demoinloggning misslyckades", errorMessage(error));
-        throw new Error("Demokontot kunde inte öppnas.");
-      }
-    }
-
-    try {
-      const created = await signInWithFlow(ctx, password, "signUp");
-      if (!created) {
-        throw new Error("Demokontot kunde inte öppnas.");
-      }
-      return created;
-    } catch (error) {
-      if (error instanceof Error && error.message === "Demokontot kunde inte öppnas.") {
-        throw error;
-      }
-      console.error("Demoregistrering misslyckades", errorMessage(error));
-      throw new Error("Demokontot kunde inte öppnas.");
-    }
+    const tokens = await openOrCreateDemoAccount(ctx, password);
+    await ctx.runMutation(internal.demoAuth.ensureDemoShopForAccount, {});
+    return tokens;
   },
 });

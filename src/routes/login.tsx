@@ -31,6 +31,28 @@ function normalizeAuthEmail(raw: string): string {
   return raw.trim()
 }
 
+function isDemoLoginEmail(raw: string): boolean {
+  return normalizeAuthEmail(raw).trim().toLowerCase() === DEMO_AUTH_EMAIL
+}
+
+function persistDemoSession(tokens: { token: string; refreshToken: string }) {
+  const convexUrl = (import.meta.env as { VITE_CONVEX_URL?: string })
+    .VITE_CONVEX_URL
+  if (!convexUrl) {
+    throw new Error('Convex-adress saknas.')
+  }
+  // Samma nycklar som @convex-dev/auth (namnrymd = Convex-URL).
+  const namespace = convexUrl.replace(/[^a-zA-Z0-9]/g, '')
+  window.localStorage.setItem(`__convexAuthJWT_${namespace}`, tokens.token)
+  window.localStorage.setItem(
+    `__convexAuthRefreshToken_${namespace}`,
+    tokens.refreshToken,
+  )
+  const url = new URL(window.location.href)
+  url.searchParams.delete('demo')
+  window.location.replace(`${url.pathname}${url.search}${url.hash}`)
+}
+
 function readableDemoAuthError(error: unknown): string {
   const raw =
     error instanceof Error ? error.message : 'Demoinloggningen misslyckades.'
@@ -89,24 +111,7 @@ function LoginPage() {
     demoAutologinStarted.current = true
     const run = async () => {
       const tokens = await signInDemo({})
-      const convexUrl = (import.meta.env as { VITE_CONVEX_URL?: string })
-        .VITE_CONVEX_URL
-      if (!convexUrl) {
-        throw new Error('Convex-adress saknas.')
-      }
-      // Samma nycklar som @convex-dev/auth (namnrymd = Convex-URL).
-      const namespace = convexUrl.replace(/[^a-zA-Z0-9]/g, '')
-      window.localStorage.setItem(
-        `__convexAuthJWT_${namespace}`,
-        tokens.token,
-      )
-      window.localStorage.setItem(
-        `__convexAuthRefreshToken_${namespace}`,
-        tokens.refreshToken,
-      )
-      const url = new URL(window.location.href)
-      url.searchParams.delete('demo')
-      window.location.replace(`${url.pathname}${url.search}${url.hash}`)
+      persistDemoSession(tokens)
     }
     void run().catch((err: unknown) => {
       setError(readableDemoAuthError(err))
@@ -172,15 +177,24 @@ function LoginPage() {
     e.preventDefault()
     setError(null)
     setBusy(true)
-    const fd = new FormData()
-    fd.set('email', normalizeAuthEmail(email))
-    fd.set('password', password)
-    fd.set('flow', flowMode)
+    const normalizedEmail = normalizeAuthEmail(email)
     try {
+      if (isDemoLoginEmail(normalizedEmail)) {
+        const tokens = await signInDemo({})
+        persistDemoSession(tokens)
+        return
+      }
+      const fd = new FormData()
+      fd.set('email', normalizedEmail)
+      fd.set('password', password)
+      fd.set('flow', flowMode)
       await signIn('password', fd)
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Inloggningen misslyckades.'
+      const msg = isDemoLoginEmail(normalizedEmail)
+        ? readableDemoAuthError(err)
+        : err instanceof Error
+          ? err.message
+          : 'Inloggningen misslyckades.'
       setError(msg)
     } finally {
       setBusy(false)
@@ -325,11 +339,9 @@ function LoginPage() {
         </h1>
         <p className="mt-2 text-sm text-brand-dark/75">
           Använd e-post och lösenord. Skriv{' '}
-          <span className="font-mono">demo</span> som e-post om du har
-          demokontot (mappas till{' '}
-          <span className="font-mono">{DEMO_AUTH_EMAIL}</span>). Exempelbutiken
-          öppnas via <span className="font-mono">/login?demo=1</span> när
-          demoinloggning är aktiverad.
+          <span className="font-mono">demo</span> som e-post för att öppna
+          exempelbutiken. Saknas demokontot skapas det då, liksom via{' '}
+          <span className="font-mono">/login?demo=1</span>.
         </p>
 
         <form

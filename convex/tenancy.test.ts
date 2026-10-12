@@ -1,10 +1,13 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
+import { DEMO_AUTH_EMAIL } from "../shared/shopConstants";
 import { api, internal } from "./_generated/api";
+import { isMissingDemoAccount } from "./demoAuth";
 import schema from "./schema";
 import * as shopsApi from "./shops";
 import { ensureDemoEnvironment } from "./taxonomy";
+import type { TestConvex } from "convex-test";
 import type { FunctionReference } from "convex/server";
 
 const modules = import.meta.glob([
@@ -327,4 +330,211 @@ describe("butiksgräns", () => {
       }
     }
   });
+
+  test("saknat demokonto tolkas inte som fel lösenord", () => {
+    expect(isMissingDemoAccount(new Error("InvalidAccountId"))).toBe(true);
+    expect(
+      isMissingDemoAccount(
+        new Error(
+          "[CONVEX A(auth:signIn)] Server Error Uncaught Error: InvalidAccountId",
+        ),
+      ),
+    ).toBe(true);
+    expect(isMissingDemoAccount(new Error("Invalid credentials"))).toBe(true);
+    expect(isMissingDemoAccount(new Error("InvalidSecret"))).toBe(false);
+    expect(isMissingDemoAccount(new Error("TooManyFailedAttempts"))).toBe(false);
+  });
+
+  test(
+    "signInDemo skapar demokonto, butik och medlemskap och är idempotent",
+    async () => {
+      const previous = {
+        password: process.env.DEMO_AUTH_PASSWORD,
+        jwt: process.env.JWT_PRIVATE_KEY,
+        site: process.env.CONVEX_SITE_URL,
+      };
+      process.env.DEMO_AUTH_PASSWORD = "test-demo-pass";
+      process.env.JWT_PRIVATE_KEY = await rsaPrivateKeyPem();
+      process.env.CONVEX_SITE_URL = "http://127.0.0.1:3210";
+      const t = convexTest(schema, modules);
+      try {
+        await t.run(async (ctx) => {
+          await ctx.db.insert("shops", {
+            name: "Redan exempel",
+            slug: "demo",
+          });
+        });
+
+        const first = await t.action(api.demoAuth.signInDemo, {});
+        expect(first.token.length).toBeGreaterThan(20);
+        expect(first.refreshToken.length).toBeGreaterThan(10);
+
+        const created = await demoSnapshot(t);
+        expect(created.accounts).toHaveLength(1);
+        expect(created.accounts[0]?.providerAccountId).toBe(DEMO_AUTH_EMAIL);
+        expect(created.shops).toHaveLength(1);
+        expect(created.shops[0]?.name).toBe("Redan exempel");
+        expect(created.memberships).toHaveLength(1);
+        expect(created.memberships[0]?.userId).toBe(created.accounts[0]?.userId);
+        expect(created.roots).toHaveLength(1);
+
+        await t.run(async (ctx) => {
+          const membership = await ctx.db.query("shopMemberships").first();
+          if (membership) {
+            await ctx.db.delete("shopMemberships", membership._id);
+          }
+        });
+
+        const second = await t.action(api.demoAuth.signInDemo, {});
+        expect(second.token.length).toBeGreaterThan(20);
+        const repaired = await demoSnapshot(t);
+        expect(repaired.accounts).toHaveLength(1);
+        expect(repaired.shops).toHaveLength(1);
+        expect(repaired.shops[0]?._id).toBe(created.shops[0]?._id);
+        expect(repaired.memberships).toHaveLength(1);
+        expect(repaired.memberships[0]?.userId).toBe(created.accounts[0]?.userId);
+        expect(repaired.roots).toHaveLength(1);
+
+        await expect(
+          t.action(api.auth.signIn, {
+            provider: "password",
+            params: {
+              email: DEMO_AUTH_EMAIL,
+              password: "test-demo-pass",
+              flow: "signIn",
+            },
+          }),
+        ).resolves.toMatchObject({
+          tokens: { token: expect.any(String), refreshToken: expect.any(String) },
+        });
+      } finally {
+        restoreEnv(previous);
+      }
+    },
+    60_000,
+  );
+
+  test(
+    "signInDemo skriver inte över ett demokonto med annat lösenord",
+    async () => {
+      const previous = {
+        password: process.env.DEMO_AUTH_PASSWORD,
+        jwt: process.env.JWT_PRIVATE_KEY,
+        site: process.env.CONVEX_SITE_URL,
+      };
+      process.env.DEMO_AUTH_PASSWORD = "test-demo-pass";
+      process.env.JWT_PRIVATE_KEY = await rsaPrivateKeyPem();
+      process.env.CONVEX_SITE_URL = "http://127.0.0.1:3210";
+      const t = convexTest(schema, modules);
+      try {
+        await t.action(api.auth.signIn, {
+          provider: "password",
+          params: {
+            email: DEMO_AUTH_EMAIL,
+            password: "annat-losenord",
+            flow: "signUp",
+          },
+        });
+        await expect(t.action(api.demoAuth.signInDemo, {})).rejects.toThrow(
+          /kunde inte öppnas/,
+        );
+        const snapshot = await demoSnapshot(t);
+        expect(snapshot.accounts).toHaveLength(1);
+        expect(snapshot.shops).toHaveLength(1);
+        expect(snapshot.memberships).toHaveLength(1);
+        await expect(
+          t.action(api.auth.signIn, {
+            provider: "password",
+            params: {
+              email: DEMO_AUTH_EMAIL,
+              password: "annat-losenord",
+              flow: "signIn",
+            },
+          }),
+        ).resolves.toMatchObject({
+          tokens: { token: expect.any(String) },
+        });
+      } finally {
+        restoreEnv(previous);
+      }
+    },
+    60_000,
+  );
 });
+
+function restoreEnv(previous: {
+  password: string | undefined;
+  jwt: string | undefined;
+  site: string | undefined;
+}) {
+  if (previous.password === undefined) {
+    delete process.env.DEMO_AUTH_PASSWORD;
+  } else {
+    process.env.DEMO_AUTH_PASSWORD = previous.password;
+  }
+  if (previous.jwt === undefined) {
+    delete process.env.JWT_PRIVATE_KEY;
+  } else {
+    process.env.JWT_PRIVATE_KEY = previous.jwt;
+  }
+  if (previous.site === undefined) {
+    delete process.env.CONVEX_SITE_URL;
+  } else {
+    process.env.CONVEX_SITE_URL = previous.site;
+  }
+}
+
+async function rsaPrivateKeyPem(): Promise<string> {
+  const key = await crypto.subtle.generateKey(
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: "SHA-256",
+    },
+    true,
+    ["sign"],
+  );
+  const pkcs8 = await crypto.subtle.exportKey("pkcs8", key.privateKey);
+  const bytes = new Uint8Array(pkcs8);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  const base64 = btoa(binary);
+  const lines = base64.match(/.{1,64}/g) ?? [];
+  return `-----BEGIN PRIVATE KEY-----\n${lines.join("\n")}\n-----END PRIVATE KEY-----\n`;
+}
+
+async function demoSnapshot(t: TestConvex<typeof schema>) {
+  return await t.run(async (ctx) => {
+    const accounts = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) =>
+        q.eq("provider", "password").eq("providerAccountId", DEMO_AUTH_EMAIL),
+      )
+      .collect();
+    const shops = await ctx.db
+      .query("shops")
+      .withIndex("by_slug", (q) => q.eq("slug", "demo"))
+      .collect();
+    const shopId = shops[0]?._id;
+    const memberships = shopId
+      ? (
+          await ctx.db
+            .query("shopMemberships")
+            .withIndex("by_shop", (q) => q.eq("shopId", shopId))
+            .collect()
+        ).filter((membership) => membership.userId === accounts[0]?.userId)
+      : [];
+    const roots = shopId
+      ? (
+          await ctx.db
+            .query("taxonomyNodes")
+            .withIndex("by_shop", (q) => q.eq("shopId", shopId))
+            .collect()
+        ).filter((node) => node.slug === "sortiment" && node.parentId === null)
+      : [];
+    return { accounts, shops, memberships, roots };
+  });
+}
