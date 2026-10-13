@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "vitest run",
-    "deploy:convex": "npx convex deploy"
+    "deploy:convex": "npx convex deploy",
+    "vercel-build": "bash scripts/vercel-build.sh"
   },
   "dependencies": {
     "@auth/core": "^0.37.0",
