@@ -62,7 +62,7 @@ function ButikStorefrontLayout() {
   }
 
   const adminNavShopName =
-    session?.shopSlug === shopSlug
+    session && session.shopSlug === shopSlug
       ? session.shopName
       : (myShopForSlug?.name ?? branding?.displayName ?? null)
 
