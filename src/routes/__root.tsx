@@ -67,6 +67,14 @@ export const Route = createRootRouteWithContext<{
       { rel: 'manifest', href: '/site.webmanifest', color: '#1B3A29' },
       { rel: 'icon', href: '/favicon.ico', sizes: 'any' },
     ],
+    scripts: [
+      {
+        src: 'https://www.trackaton.com/track.js',
+        'data-website-id': 'jd7dfbtg0kbmbch4fbrj0g6c5n8g7hef',
+        'data-endpoint': 'https://resolute-orca-949.convex.site/api/e',
+        async: true,
+      },
+    ],
   }),
   notFoundComponent: () => <div>Sidan hittades inte</div>,
   component: RootComponent,
