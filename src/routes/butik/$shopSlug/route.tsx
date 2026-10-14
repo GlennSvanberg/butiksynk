@@ -7,6 +7,7 @@ import * as React from 'react'
 import { api } from '../../../../convex/_generated/api'
 import { StorefrontOwnerBar } from '~/components/StorefrontOwnerBar'
 import { defaultLoginSearch } from '~/lib/loginSearch'
+import { trackEvent } from '~/lib/track'
 import { useShopSession } from '~/lib/shopSession'
 import { cssVarsFromStorefrontBranding } from '~/lib/storefrontTheme'
 
@@ -158,6 +159,7 @@ function ButikStorefrontLayout() {
               <Link
                 to="/login"
                 search={{ ...defaultLoginSearch, redirect: '/app/varor/ny' }}
+                onClick={() => trackEvent('signup_click')}
                 className="inline-flex items-center justify-center rounded-lg px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
                 style={{ backgroundColor: 'var(--sf-primary)' }}
               >
