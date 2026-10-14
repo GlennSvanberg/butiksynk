@@ -5,6 +5,7 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
 import { useShopSession } from '~/lib/shopSession'
+import { trackEvent } from '~/lib/track'
 
 type CaptureStatus = 'processing' | 'ready' | 'error'
 
@@ -141,6 +142,7 @@ export function AppSnabbListingPage() {
         if (!isCancelled()) {
           setActiveProductId(productId)
           lastSyncedContextRef.current = ctxTrim
+          trackEvent('product_created')
         }
       } catch (e) {
         if (!isCancelled()) {

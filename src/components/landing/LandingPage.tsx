@@ -18,6 +18,7 @@ import {
 import { SelioLogoMark } from '~/components/SelioLogoMark'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
 import { defaultLoginSearch } from '~/lib/loginSearch'
+import { trackEvent } from '~/lib/track'
 
 function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return (
@@ -56,6 +57,7 @@ function Header() {
           <Link
             to="/login"
             search={defaultLoginSearch}
+            onClick={() => trackEvent('login_click')}
             className="rounded-lg px-3 py-2 text-sm font-medium text-brand-dark/80 transition hover:bg-brand-dark/5 hover:text-brand-dark"
           >
             Logga in
@@ -252,6 +254,7 @@ function SectionFromPhotoToShop() {
             <Link
               to="/login"
               search={{ ...defaultLoginSearch, demo: '1' }}
+              onClick={() => trackEvent('demo_start')}
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-dark px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark/90"
             >
               Öppna demo
@@ -554,6 +557,7 @@ function Footer() {
             <Link
               to="/login"
               search={defaultLoginSearch}
+              onClick={() => trackEvent('login_click')}
               className="transition hover:text-brand-dark"
             >
               Logga in

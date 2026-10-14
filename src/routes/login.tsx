@@ -13,6 +13,11 @@ import { DEMO_AUTH_EMAIL } from '../../shared/shopConstants'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { useShopSession } from '~/lib/shopSession'
+import {
+  consumePendingDemoLoginSuccess,
+  markPendingDemoLoginSuccess,
+  trackEvent,
+} from '~/lib/track'
 
 export const Route = createFileRoute('/login')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -109,8 +114,10 @@ function LoginPage() {
       return
     }
     demoAutologinStarted.current = true
+    trackEvent('demo_start')
     const run = async () => {
       const tokens = await signInDemo({})
+      markPendingDemoLoginSuccess()
       persistDemoSession(tokens)
     }
     void run().catch((err: unknown) => {
@@ -143,6 +150,9 @@ function LoginPage() {
       })
       void router.invalidate()
       const to = redirect && redirect.startsWith('/app') ? redirect : '/app'
+      trackEvent('login_success', {
+        demo: consumePendingDemoLoginSuccess(),
+      })
       void navigate({ to })
     },
     [navigate, queryClient, redirect, router, setSession],
@@ -178,9 +188,16 @@ function LoginPage() {
     setError(null)
     setBusy(true)
     const normalizedEmail = normalizeAuthEmail(email)
+    if (flowMode === 'signUp') {
+      trackEvent('signup_click')
+    } else if (!isDemoLoginEmail(normalizedEmail)) {
+      trackEvent('login_click')
+    }
     try {
       if (isDemoLoginEmail(normalizedEmail)) {
+        trackEvent('demo_start')
         const tokens = await signInDemo({})
+        markPendingDemoLoginSuccess()
         persistDemoSession(tokens)
         return
       }
@@ -411,9 +428,12 @@ function LoginPage() {
           <button
             type="button"
             className="text-sm font-medium text-brand-dark/80 underline decoration-brand-dark/25 underline-offset-4 hover:text-brand-dark"
-            onClick={() =>
+            onClick={() => {
+              if (flowMode === 'signIn') {
+                trackEvent('signup_click')
+              }
               setFlowMode((m) => (m === 'signIn' ? 'signUp' : 'signIn'))
-            }
+            }}
           >
             {flowMode === 'signIn'
               ? 'Behöver du ett konto? Registrera dig'
