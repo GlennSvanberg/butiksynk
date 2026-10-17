@@ -1,8 +1,10 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { DEMO_SHOP_SLUG } from '../../../shared/shopConstants'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
+import { publicPageHead } from '~/lib/publicSite'
 
 export const Route = createFileRoute('/demoshop/')({
+  head: () => publicPageHead('/demoshop'),
   validateSearch: (search: Record<string, unknown>) => ({
     butik:
       typeof search.butik === 'string' && search.butik.length > 0

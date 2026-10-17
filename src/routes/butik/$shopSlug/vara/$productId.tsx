@@ -9,8 +9,13 @@ import type { Id } from '../../../../../convex/_generated/dataModel'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
 import { CategoryBreadcrumb } from '~/components/CategoryBreadcrumb'
 import { formatProductAttributeDisplay } from '~/lib/formatProductAttribute'
+import { publicPageHead } from '~/lib/publicSite'
 
 export const Route = createFileRoute('/butik/$shopSlug/vara/$productId')({
+  head: ({ params }) =>
+    publicPageHead(
+      `/butik/${encodeURIComponent(params.shopSlug)}/vara/${encodeURIComponent(params.productId)}`,
+    ),
   component: ButikProductDetail,
 })
 
