@@ -12,8 +12,11 @@ import {
 } from '~/components/storefront/StorefrontCardSkeletons'
 import { StorefrontProductGrid } from '~/components/storefront/StorefrontProductGrid'
 import { emptyButikListingSearch } from '~/lib/butikPublicSearch'
+import { publicPageHead } from '~/lib/publicSite'
 
 export const Route = createFileRoute('/butik/$shopSlug/')({
+  head: ({ params }) =>
+    publicPageHead(`/butik/${encodeURIComponent(params.shopSlug)}`),
   validateSearch: (search: Record<string, unknown>) => ({
     q:
       typeof search.q === 'string' && search.q.length > 0

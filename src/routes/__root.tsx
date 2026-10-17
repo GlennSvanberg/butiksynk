@@ -6,7 +6,12 @@ import {
 } from '@tanstack/react-router'
 import * as React from 'react'
 import type { QueryClient } from '@tanstack/react-query'
+import { absolutePublicUrl } from '~/lib/publicSite'
 import appCss from '~/styles/app.css?url'
+
+const SITE_TITLE = 'Selio — Från inlämning till kundbutik'
+const SITE_DESCRIPTION =
+  'Selio håller inlämning, lager och kundbutik i synk för vintage och second hand, med AI-stöd för titel, pris och text.'
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient
@@ -21,13 +26,18 @@ export const Route = createRootRouteWithContext<{
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'Selio — Från inlämning till kundbutik',
+        title: SITE_TITLE,
       },
       {
         name: 'description',
-        content:
-          'Selio håller inlämning, lager och kundbutik i synk för vintage och second hand, med AI-stöd för titel, pris och text.',
+        content: SITE_DESCRIPTION,
       },
+      { property: 'og:title', content: SITE_TITLE },
+      { property: 'og:description', content: SITE_DESCRIPTION },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:url', content: absolutePublicUrl('/') },
+      { property: 'og:image', content: absolutePublicUrl('/selio.png') },
+      { name: 'twitter:card', content: 'summary_large_image' },
     ],
     links: [
       { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
